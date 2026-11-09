@@ -102,7 +102,7 @@ def _pil_to_png_data_uri(pil_img: Image.Image) -> str:
         pil_img = pil_img.resize(new_size, resample=Image.Resampling.LANCZOS)
 
     buf = io.BytesIO()
-    pil_img.save(buf, format="PNG", optimize=True)
+    pil_img.save(buf, format="PNG", compress_level=1)
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{b64}"
 
@@ -129,14 +129,22 @@ def _resolve_candidate_image(image_path: str | Path | None) -> Path | None:
 
 def _render_frame_preview_pair(pil_frame: Image.Image, frame_index: int) -> dict[str, Any]:
     """Render Original and Enhanced Reveal base64 PNG data URIs for a single page or frame."""
-    fw, fh = pil_frame.size
+    native_fw, native_fh = pil_frame.size
     has_alpha = pil_frame.mode in {"RGBA", "LA", "PA"} or (
         pil_frame.mode == "P" and "transparency" in pil_frame.info
     )
-    rgba = np.array(
+    rgba_full = np.array(
         pil_frame if pil_frame.mode == "RGBA" else pil_frame.convert("RGBA"),
         dtype=np.uint8,
     )
+    if max(native_fw, native_fh) > _MAX_PREVIEW_DIM:
+        scale = _MAX_PREVIEW_DIM / float(max(native_fw, native_fh))
+        pw = max(1, int(round(native_fw * scale)))
+        ph = max(1, int(round(native_fh * scale)))
+        rgba = cv2.resize(rgba_full, (pw, ph), interpolation=cv2.INTER_AREA)
+    else:
+        rgba = rgba_full
+
     orig_uri = _pil_to_png_data_uri(Image.fromarray(rgba, mode="RGBA"))
 
     comp_rgb = composite_rgba_on_white(rgba)
@@ -167,8 +175,8 @@ def _render_frame_preview_pair(pil_frame: Image.Image, frame_index: int) -> dict
 
     return {
         "frame_index": frame_index,
-        "width": int(fw),
-        "height": int(fh),
+        "width": int(native_fw),
+        "height": int(native_fh),
         "original_data_uri": orig_uri,
         "reveal_data_uri": reveal_uri,
     }

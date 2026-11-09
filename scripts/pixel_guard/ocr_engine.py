@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import concurrent.futures
 import difflib
+import functools
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -14,17 +16,11 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
 
 from .config import OCREngineUnavailableError, ScanConfig
 from .models import DetectedRegion, PassImage
 
 logger = logging.getLogger("pixel_guard.ocr_engine")
-
-try:
-    import pytesseract  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    pytesseract = None
 
 _ALNUM_RE = re.compile(r"[A-Za-z0-9]")
 
@@ -108,29 +104,25 @@ def _run_tesseract_on_array(
     psm: int,
     tesseract_bin: str,
     min_conf: float,
+    timeout_s: float = 10.0,
 ) -> list[_WordToken]:
-    """Execute local Tesseract OCR on a single grayscale uint8 array."""
-    custom_cfg = f"--oem 3 --psm {psm}"
-    if pytesseract is not None:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_bin
-        pil_img = Image.fromarray(image)
-        tsv = pytesseract.image_to_data(
-            pil_img,
-            config=custom_cfg,
-            output_type=pytesseract.Output.STRING,
-        )
-        return _parse_tesseract_tsv(tsv, min_conf=min_conf)
-
-    # Direct subprocess fallback when pytesseract Python wrapper is not installed
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
+    """Execute local Tesseract OCR on a single grayscale uint8 array with bounded OpenMP threads."""
+    tess_env = os.environ.copy()
+    tess_env["OMP_THREAD_LIMIT"] = "2" if (image.shape[0] * image.shape[1]) >= 600_000 else "1"
+    with tempfile.NamedTemporaryFile(suffix=".pgm", delete=True) as tmp:
         cv2.imwrite(tmp.name, image)
-        proc = subprocess.run(
-            [tesseract_bin, tmp.name, "stdout", "--oem", "3", "--psm", str(psm), "tsv"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15,
-        )
+        try:
+            proc = subprocess.run(
+                [tesseract_bin, tmp.name, "stdout", "--oem", "3", "--psm", str(psm), "tsv"],
+                env=tess_env,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("Tesseract OCR timed out after %.1fs on psm=%d (%s)", timeout_s, psm, image.shape)
+            return []
         if proc.returncode != 0:
             return []
         return _parse_tesseract_tsv(proc.stdout, min_conf=min_conf)
@@ -213,6 +205,7 @@ def _horizontal_overlap_ratio(a: tuple[int, int, int, int], b: tuple[int, int, i
     return float(ix2 - ix1) / float(max(1, min(aw, bw)))
 
 
+@functools.lru_cache(maxsize=4096)
 def _normalize_text(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", text.lower())
 
@@ -231,6 +224,11 @@ def _candidate_containment_ratio(container: tuple[int, int, int, int], inner: tu
 def _is_duplicate_region(existing: DetectedRegion, candidate: DetectedRegion) -> bool:
     """Determine if two regions represent the same underlying visual text line."""
     if existing.frame_index != candidate.frame_index:
+        return False
+
+    ay1, ah = existing.bbox[1], existing.bbox[3]
+    by1, bh = candidate.bbox[1], candidate.bbox[3]
+    if ay1 > by1 + bh + 6 or by1 > ay1 + ah + 6:
         return False
 
     iou = _bbox_iou(existing.bbox, candidate.bbox)
@@ -265,6 +263,7 @@ def _ocr_single_pass(
     tesseract_bin: str,
     min_conf: float,
     native_dims: tuple[int, int],
+    timeout_s: float = 10.0,
 ) -> list[DetectedRegion]:
     """Worker routine running configured PSM modes on one PassImage and mapping coords to 1x."""
     img_w, img_h = native_dims
@@ -276,6 +275,7 @@ def _ocr_single_pass(
             psm=psm,
             tesseract_bin=tesseract_bin,
             min_conf=min_conf,
+            timeout_s=timeout_s,
         )
         lines = _group_tokens_into_lines(tokens)
         for phrase, (px, py, pw, ph), conf in lines:
@@ -305,8 +305,11 @@ def _ocr_single_pass(
             if not any(_is_duplicate_region(r, candidate) for r in pass_regions):
                 pass_regions.append(candidate)
 
-        # If primary PSM 6 already yielded clean high-confidence text on this pass, skip sparse PSM 11
-        if psm == 6 and pass_regions and all(r.confidence >= 0.75 for r in pass_regions):
+        # Skip redundant sparse PSM 11 when primary PSM 6 already recovered structured lines
+        if psm == 6 and (
+            len(pass_regions) >= 2
+            or (len(pass_regions) == 1 and pass_regions[0].confidence >= 0.55)
+        ):
             break
 
     return pass_regions
@@ -382,6 +385,7 @@ def run_multipass_ocr(
                     tesseract_bin,
                     config.ocr_min_confidence,
                     dims_map.get(p.frame_index, native_dims),
+                    config.ocr_pass_timeout_s,
                 )
                 for p in passes
             ]
@@ -394,6 +398,7 @@ def run_multipass_ocr(
                         tesseract_bin,
                         config.ocr_min_confidence,
                         dims_map.get(p.frame_index, native_dims),
+                        config.ocr_pass_timeout_s,
                     )
                     for p in passes
                 ]

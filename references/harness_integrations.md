@@ -72,8 +72,10 @@ Runtime thresholds can be configured via environment variables without modifying
 | `PIXEL_GUARD_MIN_HEIGHT_PX` | `8` | Minimum bounding-box pixel height before flagging `MICRO_TEXT_ANOMALY`. |
 | `PIXEL_GUARD_ENTROPY_MAX` | `4.7` | Maximum Shannon entropy (bits/char) on unspaced tokens `>= 24` chars. |
 | `PIXEL_GUARD_MAX_PIXELS` | `36000000` | Maximum allowed pixel count (`width * height`) before rejecting decompression bombs. |
-| `PIXEL_GUARD_MAX_FRAMES` | `8` | Maximum distinct frames analyzed in multi-frame containers. |
+| `PIXEL_GUARD_MAX_FRAMES` | `24` | Maximum distinct pages or frames analyzed in multi-frame containers. |
+| `PIXEL_GUARD_MAX_OCR_DIM` | `1600` | Maximum working pixel dimension for full-frame OCR passes before 1x coordinate remapping. |
 | `PIXEL_GUARD_OCR_WORKERS` | `4` | Thread pool concurrency for local Tesseract passes. |
+| `PIXEL_GUARD_OCR_TIMEOUT_S` | `10.0` | Per-invocation timeout in seconds for local Tesseract subprocess execution. |
 | `PIXEL_GUARD_TESSERACT_CMD` | Auto-detected | Optional explicit path or command name for the `tesseract` binary. |
 | `PIXEL_GUARD_HOOK_MODE` | `gate_threats` | `gate_threats` (block threats/hidden text) or `strict_airgap` (always substitute text report). |
 | `PIXEL_GUARD_SYSTEM_THEME` | Auto-detected | Optional explicit fallback theme (`light` or `dark`) embedded into `dashboard.html`. |

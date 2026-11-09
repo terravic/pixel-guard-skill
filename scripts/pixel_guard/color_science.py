@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 
 import cv2
@@ -11,48 +12,51 @@ from .config import ScanConfig
 from .models import DetectedRegion, VisibilityProfile
 from .preprocessor import ExtractedFrame
 
-try:
-    from skimage.color import deltaE_ciede2000 as _skimage_ciede2000  # type: ignore[import-untyped]
-    from skimage.color import rgb2lab as _skimage_rgb2lab  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    _skimage_ciede2000 = None
-    _skimage_rgb2lab = None
-
 
 def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Format an 8-bit (R, G, B) tuple as uppercase #RRGGBB."""
     return f"#{rgb[0]:02X}{rgb[1]:02X}{rgb[2]:02X}"
 
 
+@functools.lru_cache(maxsize=4096)
+def _cached_srgb_luminance(r: int, g: int, b: int) -> float:
+    sr, sg, sb = r / 255.0, g / 255.0, b / 255.0
+    lr = sr / 12.92 if sr <= 0.04045 else ((sr + 0.055) / 1.055) ** 2.4
+    lg = sg / 12.92 if sg <= 0.04045 else ((sg + 0.055) / 1.055) ** 2.4
+    lb = sb / 12.92 if sb <= 0.04045 else ((sb + 0.055) / 1.055) ** 2.4
+    return float(0.2126 * lr + 0.7152 * lg + 0.0722 * lb)
+
+
 def compute_relative_luminance(rgb: tuple[int, int, int] | np.ndarray) -> float:
     """Compute WCAG 2.1 relative luminance L in [0.0, 1.0] from 8-bit sRGB."""
+    if isinstance(rgb, tuple) and len(rgb) == 3:
+        return _cached_srgb_luminance(int(rgb[0]), int(rgb[1]), int(rgb[2]))
     arr = np.asarray(rgb, dtype=np.float64) / 255.0
     linear = np.where(arr <= 0.04045, arr / 12.92, ((arr + 0.055) / 1.055) ** 2.4)
     return float(0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2])
 
 
+@functools.lru_cache(maxsize=4096)
 def calculate_wcag_contrast(fg_rgb: tuple[int, int, int], bg_rgb: tuple[int, int, int]) -> float:
     """Compute WCAG 2.1 contrast ratio CR in [1.0, 21.0]."""
-    l1 = compute_relative_luminance(fg_rgb)
-    l2 = compute_relative_luminance(bg_rgb)
+    l1 = _cached_srgb_luminance(fg_rgb[0], fg_rgb[1], fg_rgb[2])
+    l2 = _cached_srgb_luminance(bg_rgb[0], bg_rgb[1], bg_rgb[2])
     lighter = max(l1, l2)
     darker = min(l1, l2)
     return float((lighter + 0.05) / (darker + 0.05))
 
 
+@functools.lru_cache(maxsize=4096)
 def rgb_to_cielab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
     """Convert an 8-bit sRGB triplet to CIE 1976 L*a*b* (D65 illuminant)."""
-    if _skimage_rgb2lab is not None:
-        sample = np.array([[rgb]], dtype=np.uint8) / 255.0
-        lab = _skimage_rgb2lab(sample)[0, 0]
-        return (float(lab[0]), float(lab[1]), float(lab[2]))
+    sr, sg, sb = rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0
+    lr = sr / 12.92 if sr <= 0.04045 else ((sr + 0.055) / 1.055) ** 2.4
+    lg = sg / 12.92 if sg <= 0.04045 else ((sg + 0.055) / 1.055) ** 2.4
+    lb = sb / 12.92 if sb <= 0.04045 else ((sb + 0.055) / 1.055) ** 2.4
 
-    # Exact sRGB -> XYZ (D65) -> LAB fallback
-    srgb = np.asarray(rgb, dtype=np.float64) / 255.0
-    lin = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
-    x = lin[0] * 0.4124564 + lin[1] * 0.3575761 + lin[2] * 0.1804375
-    y = lin[0] * 0.2126729 + lin[1] * 0.7151522 + lin[2] * 0.0721750
-    z = lin[0] * 0.0193339 + lin[1] * 0.1191920 + lin[2] * 0.9503041
+    x = lr * 0.4124564 + lg * 0.3575761 + lb * 0.1804375
+    y = lr * 0.2126729 + lg * 0.7151522 + lb * 0.0721750
+    z = lr * 0.0193339 + lg * 0.1191920 + lb * 0.9503041
 
     xr, yr, zr = x / 0.95047, y / 1.00000, z / 1.08883
     eps = 216.0 / 24389.0
@@ -60,7 +64,7 @@ def rgb_to_cielab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
 
     fx = xr ** (1.0 / 3.0) if xr > eps else (kappa * xr + 16.0) / 116.0
     fy = yr ** (1.0 / 3.0) if yr > eps else (kappa * yr + 16.0) / 116.0
-    fz = zr ** (1.0 / 3.0) if zr > eps else (kappa * zr + 16.0) / 116.0
+    fz = zr ** (1.0 / 3.0) if zr > eps else (kappa * yr * 0.0 + kappa * zr + 16.0) / 116.0
 
     L = 116.0 * fy - 16.0
     a = 500.0 * (fx - fy)
@@ -68,13 +72,11 @@ def rgb_to_cielab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
     return (float(L), float(a), float(b))
 
 
+@functools.lru_cache(maxsize=4096)
 def calculate_ciede2000(fg_rgb: tuple[int, int, int], bg_rgb: tuple[int, int, int]) -> float:
     """Compute perceptual CIEDE2000 color difference (Delta E_00) between two sRGB colors."""
     lab1 = rgb_to_cielab(fg_rgb)
     lab2 = rgb_to_cielab(bg_rgb)
-    if _skimage_ciede2000 is not None:
-        val = _skimage_ciede2000(np.array([lab1]), np.array([lab2]))[0]
-        return float(val)
 
     # Exact Sharma-Wu-Dalal (2005) CIEDE2000 formula
     L1, a1, b1 = lab1

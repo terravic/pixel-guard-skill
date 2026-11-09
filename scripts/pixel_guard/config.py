@@ -88,9 +88,11 @@ class ScanConfig:
     entropy_min_length: int = 24
     max_image_pixels: int = 36_000_000
     max_frames: int = 24
+    max_ocr_dimension: int = 1600
     frame_diff_threshold: float = 1.0
     ocr_workers: int = 4
     ocr_min_confidence: float = 0.32
+    ocr_pass_timeout_s: float = 10.0
     tesseract_cmd: str | None = None
     ocr_backend: str = "auto"
 
@@ -107,9 +109,11 @@ class ScanConfig:
             entropy_min_length=_env_int("PIXEL_GUARD_ENTROPY_MIN_LEN", 24),
             max_image_pixels=_env_int("PIXEL_GUARD_MAX_PIXELS", 36_000_000),
             max_frames=_env_int("PIXEL_GUARD_MAX_FRAMES", 24),
+            max_ocr_dimension=max(640, _env_int("PIXEL_GUARD_MAX_OCR_DIM", 1600)),
             frame_diff_threshold=_env_float("PIXEL_GUARD_FRAME_DIFF_MIN", 1.0),
             ocr_workers=max(1, _env_int("PIXEL_GUARD_OCR_WORKERS", 4)),
             ocr_min_confidence=_env_float("PIXEL_GUARD_OCR_MIN_CONF", 0.32),
+            ocr_pass_timeout_s=max(1.0, _env_float("PIXEL_GUARD_OCR_TIMEOUT_S", 10.0)),
             tesseract_cmd=tess_cmd.strip() if tess_cmd and tess_cmd.strip() else None,
             ocr_backend=os.getenv("PIXEL_GUARD_OCR_BACKEND", "auto").strip().lower(),
         )
