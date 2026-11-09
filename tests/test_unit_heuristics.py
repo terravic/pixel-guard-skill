@@ -64,7 +64,7 @@ def test_base64_and_hex_obfuscation_recursive_detection() -> None:
 
 
 def test_shannon_entropy_and_benign_clinical_false_positive_immunity() -> None:
-    """Verify high-entropy blobs are caught while benign clinical/enterprise prose stays CLEAN."""
+    """Verify high-entropy blobs are caught while benign technical prose stays CLEAN."""
     cfg = ScanConfig()
     high_ent_token = "aB3$kL9!mN2@pQ7#rS5%tU8^vW1&xY4*zZ6"
     assert calculate_shannon_entropy(high_ent_token) > 4.8

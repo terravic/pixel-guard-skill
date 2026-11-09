@@ -48,7 +48,7 @@ def test_ciede2000_color_difference_scale() -> None:
 def test_profile_region_visibility_flags_low_contrast_and_micro_text() -> None:
     """Verify collar sampling accurately extracts stroke and background colors without inversion."""
     cfg = ScanConfig()
-    # Construct synthetic 120x60 white canvas with a #FAFAFA horizontal bar representing strokes
+    # Construct synthetic 120x60 white background with a #FAFAFA horizontal bar representing strokes
     rgba = np.full((60, 120, 4), 255, dtype=np.uint8)
     rgba[22:36, 20:95, :3] = 250
     comp_rgb = rgba[:, :, :3].copy()

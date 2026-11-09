@@ -197,7 +197,7 @@ def profile_region_visibility(
     x1 = min(img_w, x + w + pad)
     y1 = min(img_h, y + h + pad)
 
-    # For zero-alpha RGB steganography, human eyes see uniform white/transparent canvas (CR = 1.0),
+    # For zero-alpha RGB steganography, human eyes see uniform white/transparent background (CR = 1.0),
     # while raw_rgba holds the hidden RGB text.
     comp_crop = frame.composited_rgb[y0:y1, x0:x1]
     rgba_crop = frame.raw_rgba[y0:y1, x0:x1]
@@ -219,9 +219,9 @@ def profile_region_visibility(
     else:
         bg_rgb = (255, 255, 255)
 
-    # If partial alpha existed on a transparent canvas, mean_alpha reflects actual glyph alpha
+    # If partial alpha existed on a transparent layer, mean_alpha reflects actual glyph alpha
     if frame.has_alpha_channel and region.origin_pass in {"alpha_partial", "alpha_zero_rgb"}:
-        # Check whether canvas had low alpha vs high alpha modulated slightly
+        # Check whether surrounding collar had low alpha vs high alpha modulated slightly
         collar_alpha = float(np.mean(rgba_crop[:, :, 3][collar_mask])) / 255.0 if np.any(collar_mask) else 1.0
         if region.origin_pass == "alpha_zero_rgb":
             # Measure alpha strictly on pixels where raw RGB deviated inside low-alpha zone
@@ -253,10 +253,10 @@ def profile_region_visibility(
         flags.append("FREQUENCY_EDGE_CAMOUFLAGE")
     if region.origin_pass == "perceptual_chroma":
         flags.append("CHROMINANCE_CAMOUFLAGE")
-    if region.frame_index > 0:
+    if region.frame_index > 0 and not frame.is_document_page:
         flags.append("INACTIVE_FRAME_OBFUSCATION")
 
-    # Margin bleed anomaly: flush within <= 6px of outer canvas border with compact glyph height (<= 14px)
+    # Margin bleed anomaly: flush within <= 6px of outer image border with compact glyph height (<= 14px)
     near_margin = (x <= 6) or (y <= 6) or ((x + w) >= img_w - 6) or ((y + h) >= img_h - 6)
     if near_margin and h <= 14:
         flags.append("MARGIN_BLEED_PLACEMENT")
@@ -270,7 +270,7 @@ def profile_region_visibility(
 
     is_visible = (
         region.origin_pass == "baseline"
-        and region.frame_index == 0
+        and (region.frame_index == 0 or frame.is_document_page)
         and len(flags) == 0
     )
 

@@ -30,6 +30,26 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
+def to_project_relative_path(target: str | Path) -> str:
+    """Convert a filesystem path into a POSIX relative path from the project root when possible."""
+    raw_str = str(target).strip()
+    if raw_str.startswith("["):
+        return raw_str
+    p = Path(raw_str)
+    if not p.is_absolute():
+        return p.as_posix()
+    resolved = p.resolve()
+    root = get_project_root()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError:
+        pass
+    try:
+        return resolved.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return resolved.name
+
+
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name)
     if raw is None or not raw.strip():
@@ -67,7 +87,7 @@ class ScanConfig:
     entropy_threshold: float = 4.7
     entropy_min_length: int = 24
     max_image_pixels: int = 36_000_000
-    max_frames: int = 8
+    max_frames: int = 24
     frame_diff_threshold: float = 1.0
     ocr_workers: int = 4
     ocr_min_confidence: float = 0.32
@@ -86,7 +106,7 @@ class ScanConfig:
             entropy_threshold=_env_float("PIXEL_GUARD_ENTROPY_MAX", 4.7),
             entropy_min_length=_env_int("PIXEL_GUARD_ENTROPY_MIN_LEN", 24),
             max_image_pixels=_env_int("PIXEL_GUARD_MAX_PIXELS", 36_000_000),
-            max_frames=_env_int("PIXEL_GUARD_MAX_FRAMES", 8),
+            max_frames=_env_int("PIXEL_GUARD_MAX_FRAMES", 24),
             frame_diff_threshold=_env_float("PIXEL_GUARD_FRAME_DIFF_MIN", 1.0),
             ocr_workers=max(1, _env_int("PIXEL_GUARD_OCR_WORKERS", 4)),
             ocr_min_confidence=_env_float("PIXEL_GUARD_OCR_MIN_CONF", 0.32),

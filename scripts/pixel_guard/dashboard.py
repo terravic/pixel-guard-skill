@@ -26,16 +26,24 @@ import cv2
 import numpy as np
 from PIL import Image, ImageSequence
 
-from .config import OCREngineUnavailableError, PixelGuardError, ScanConfig, ValidationError, get_project_root
+from .config import (
+    OCREngineUnavailableError,
+    PixelGuardError,
+    ScanConfig,
+    ValidationError,
+    get_project_root,
+    to_project_relative_path,
+)
 from .dashboard_ui import DASHBOARD_HTML_TEMPLATE
 from .models import ScanReport
-from .preprocessor import _amplify_deviation_to_ocr_canvas, _morphological_deviation, composite_rgba_on_white
+from .preprocessor import _amplify_deviation_to_ocr_surface, _morphological_deviation, composite_rgba_on_white
 
 logger = logging.getLogger("pixel_guard.dashboard")
 
 DEFAULT_STUDIO_PORT = 18765
 _MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB ceiling
 _MAX_PREVIEW_DIM = 1280
+_MAX_PREVIEW_PAGES = 24
 _SUPPORTED_EXTS = {
     ".png",
     ".jpg",
@@ -57,35 +65,18 @@ def default_dashboard_path() -> Path:
 
 
 def detect_host_system_theme() -> str:
-    """Query the host OS appearance preference ('light' or 'dark') as webview fallback."""
-    sys_name = platform.system().lower()
-    try:
-        if sys_name == "darwin":
-            proc = subprocess.run(
-                ["defaults", "read", "-g", "AppleInterfaceStyle"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=1.5,
-            )
-            if proc.returncode == 0 and "dark" in proc.stdout.lower():
-                return "dark"
-            return "light"
+    """Query host environment appearance preference ('light' or 'dark') as fallback."""
+    explicit = os.getenv("PIXEL_GUARD_SYSTEM_THEME", "").strip().lower()
+    if explicit in {"light", "dark"}:
+        return explicit
 
-        if sys_name == "windows":
-            import winreg  # type: ignore[import-not-found]
+    gtk_theme = os.getenv("GTK_THEME", "").lower()
+    if "dark" in gtk_theme:
+        return "dark"
+    if gtk_theme:
+        return "light"
 
-            key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as reg_key:
-                val, _ = winreg.QueryValueEx(reg_key, "AppsUseLightTheme")
-                return "light" if int(val) == 1 else "dark"
-
-        gtk_theme = os.getenv("GTK_THEME", "").lower()
-        if "dark" in gtk_theme:
-            return "dark"
-        if gtk_theme:
-            return "light"
-
+    if platform.system().lower() == "linux":
         try:
             proc = subprocess.run(
                 ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
@@ -96,16 +87,8 @@ def detect_host_system_theme() -> str:
             )
             if proc.returncode == 0 and "dark" in proc.stdout.lower():
                 return "dark"
-        except FileNotFoundError:
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
             pass
-
-        kde_cfg = Path.home() / ".config" / "kdeglobals"
-        if kde_cfg.is_file():
-            content = kde_cfg.read_text(encoding="utf-8", errors="ignore").lower()
-            if "breezedark" in content or "colorscheme=dark" in content:
-                return "dark"
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Host system theme detection fallback triggered: %s", exc)
 
     return "light"
 
@@ -124,19 +107,83 @@ def _pil_to_png_data_uri(pil_img: Image.Image) -> str:
     return f"data:image/png;base64,{b64}"
 
 
+def _resolve_candidate_image(image_path: str | Path | None) -> Path | None:
+    """Resolve relative or absolute image path against cwd and project root."""
+    if not image_path:
+        return None
+    raw = str(image_path).strip()
+    if not raw or raw.startswith("["):
+        return None
+    p = Path(raw)
+    if p.is_file():
+        return p
+    if not p.is_absolute():
+        from_root = get_project_root() / p
+        if from_root.is_file():
+            return from_root
+        from_cwd = Path.cwd() / p
+        if from_cwd.is_file():
+            return from_cwd
+    return None
+
+
+def _render_frame_preview_pair(pil_frame: Image.Image, frame_index: int) -> dict[str, Any]:
+    """Render Original and Enhanced Reveal base64 PNG data URIs for a single page or frame."""
+    fw, fh = pil_frame.size
+    has_alpha = pil_frame.mode in {"RGBA", "LA", "PA"} or (
+        pil_frame.mode == "P" and "transparency" in pil_frame.info
+    )
+    rgba = np.array(
+        pil_frame if pil_frame.mode == "RGBA" else pil_frame.convert("RGBA"),
+        dtype=np.uint8,
+    )
+    orig_uri = _pil_to_png_data_uri(Image.fromarray(rgba, mode="RGBA"))
+
+    comp_rgb = composite_rgba_on_white(rgba)
+    gray = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2GRAY)
+
+    layers: list[np.ndarray] = [_morphological_deviation(gray, kernel_size=35)]
+
+    lab = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2LAB)
+    layers.append(_morphological_deviation(lab[:, :, 1], kernel_size=35))
+    layers.append(_morphological_deviation(lab[:, :, 2], kernel_size=35))
+
+    if has_alpha:
+        alpha = rgba[:, :, 3]
+        if int(alpha.max()) - int(alpha.min()) >= 2:
+            layers.append(_morphological_deviation(alpha, kernel_size=35))
+        low_alpha = alpha < 77
+        if bool(np.any(low_alpha)):
+            raw_gray = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2GRAY)
+            vals = raw_gray[low_alpha]
+            if vals.size > 16 and (int(vals.max()) - int(vals.min())) >= 2:
+                bg_fill = int(np.median(vals))
+                iso_raw = np.where(low_alpha, raw_gray, bg_fill).astype(np.uint8)
+                layers.append(_morphological_deviation(iso_raw, kernel_size=35))
+
+    combined_dev = np.maximum.reduce(layers)
+    reveal_gray = _amplify_deviation_to_ocr_surface(combined_dev, noise_floor=2.5, min_cut=1.0)
+    reveal_uri = _pil_to_png_data_uri(Image.fromarray(reveal_gray, mode="L"))
+
+    return {
+        "frame_index": frame_index,
+        "width": int(fw),
+        "height": int(fh),
+        "original_data_uri": orig_uri,
+        "reveal_data_uri": reveal_uri,
+    }
+
+
 def build_image_previews(
     image_path: str | Path | None,
     report_dict: dict[str, Any],
 ) -> dict[str, Any]:
-    """Generate Original and Enhanced Reveal base64 PNG data URIs for the dashboard."""
-    if not image_path:
-        return {}
-    path = Path(image_path)
-    if not path.is_file():
+    """Generate per-page Original and Enhanced Reveal PNG data URIs for the dashboard."""
+    path = _resolve_candidate_image(image_path)
+    if path is None:
         return {}
 
     try:
-        # Select secondary frame for reveal view if an inactive frame held quarantined text
         reveal_frame_idx = 0
         for q in report_dict.get("section_2_quarantined_items") or []:
             f_idx = int(q.get("frame_index") or 0)
@@ -145,55 +192,29 @@ def build_image_previews(
                 break
 
         with Image.open(path) as img:
-            frames = [f.copy() for _, f in zip(range(max(1, reveal_frame_idx + 1)), ImageSequence.Iterator(img))]
+            raw_frames = [
+                f.copy()
+                for _, f in zip(range(_MAX_PREVIEW_PAGES), ImageSequence.Iterator(img))
+            ]
 
-        frame0 = frames[0]
-        orig_rgba = np.array(frame0 if frame0.mode == "RGBA" else frame0.convert("RGBA"), dtype=np.uint8)
-        # Preserve native RGBA so transparent PNGs display against the subtle checkerboard viewport
-        orig_pil = Image.fromarray(orig_rgba, mode="RGBA")
-        orig_uri = _pil_to_png_data_uri(orig_pil)
+        if not raw_frames:
+            return {}
 
-        target_frame = frames[min(reveal_frame_idx, len(frames) - 1)]
-        has_alpha = target_frame.mode in {"RGBA", "LA", "PA"} or (
-            target_frame.mode == "P" and "transparency" in target_frame.info
-        )
-        rev_rgba = np.array(
-            target_frame if target_frame.mode == "RGBA" else target_frame.convert("RGBA"),
-            dtype=np.uint8,
-        )
-        comp_rgb = composite_rgba_on_white(rev_rgba)
-        gray = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2GRAY)
-
-        layers: list[np.ndarray] = [_morphological_deviation(gray, kernel_size=35)]
-
-        lab = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2LAB)
-        layers.append(_morphological_deviation(lab[:, :, 1], kernel_size=35))
-        layers.append(_morphological_deviation(lab[:, :, 2], kernel_size=35))
-
-        if has_alpha:
-            alpha = rev_rgba[:, :, 3]
-            if int(alpha.max()) - int(alpha.min()) >= 2:
-                layers.append(_morphological_deviation(alpha, kernel_size=35))
-            low_alpha = alpha < 77
-            if bool(np.any(low_alpha)):
-                raw_gray = cv2.cvtColor(rev_rgba[:, :, :3], cv2.COLOR_RGB2GRAY)
-                vals = raw_gray[low_alpha]
-                if vals.size > 16 and (int(vals.max()) - int(vals.min())) >= 2:
-                    bg_fill = int(np.median(vals))
-                    iso_raw = np.where(low_alpha, raw_gray, bg_fill).astype(np.uint8)
-                    layers.append(_morphological_deviation(iso_raw, kernel_size=35))
-
-        combined_dev = np.maximum.reduce(layers)
-        reveal_gray = _amplify_deviation_to_ocr_canvas(combined_dev, noise_floor=2.5, min_cut=1.0)
-        reveal_uri = _pil_to_png_data_uri(Image.fromarray(reveal_gray, mode="L"))
+        frame_previews = [
+            _render_frame_preview_pair(frame_img, idx)
+            for idx, frame_img in enumerate(raw_frames)
+        ]
+        safe_rev_idx = min(reveal_frame_idx, len(frame_previews) - 1)
 
         return {
-            "original_data_uri": orig_uri,
-            "reveal_data_uri": reveal_uri,
-            "reveal_frame_index": reveal_frame_idx,
+            "original_data_uri": frame_previews[0]["original_data_uri"],
+            "reveal_data_uri": frame_previews[safe_rev_idx]["reveal_data_uri"],
+            "reveal_frame_index": safe_rev_idx,
+            "frame_count": len(frame_previews),
+            "frames": frame_previews,
         }
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Could not generate image preview bundle for %s: %s", path, exc)
+        logger.debug("Could not generate image preview bundle for %s: %s", path.name, exc)
         return {}
 
 
@@ -203,6 +224,8 @@ def attach_dashboard_previews(
 ) -> dict[str, Any]:
     """Return a copy of the report dictionary enriched with preview_images if missing."""
     data = report.to_dict() if isinstance(report, ScanReport) else dict(report)
+    if data.get("image_path"):
+        data["image_path"] = to_project_relative_path(str(data["image_path"]))
     if not data.get("preview_images"):
         candidate = source_image_path or data.get("image_path")
         previews = build_image_previews(candidate, data)
@@ -212,7 +235,7 @@ def attach_dashboard_previews(
 
 
 def _discover_available_images() -> list[dict[str, Any]]:
-    """Return sorted list of test images in tests/images/ and workspace raster files."""
+    """Return sorted list of test images in tests/images/ and workspace raster files using relative paths."""
     root = get_project_root()
     candidates: list[Path] = []
     images_dir = root / "tests" / "images"
@@ -230,14 +253,11 @@ def _discover_available_images() -> list[dict[str, Any]]:
     for path in candidates:
         if not path.is_file() or path.suffix.lower() not in _SUPPORTED_EXTS:
             continue
-        resolved = str(path.resolve())
-        if resolved in seen:
+        resolved_key = str(path.resolve())
+        if resolved_key in seen:
             continue
-        seen.add(resolved)
-        try:
-            rel_display = str(path.resolve().relative_to(root))
-        except ValueError:
-            rel_display = path.name
+        seen.add(resolved_key)
+        rel_path = to_project_relative_path(path)
         try:
             size_bytes = path.stat().st_size
         except OSError:
@@ -245,8 +265,8 @@ def _discover_available_images() -> list[dict[str, Any]]:
         items.append(
             {
                 "name": path.name,
-                "display": rel_display,
-                "path": resolved,
+                "display": rel_path,
+                "path": rel_path,
                 "size_bytes": size_bytes,
             }
         )
@@ -254,7 +274,7 @@ def _discover_available_images() -> list[dict[str, Any]]:
 
 
 def _browse_directory(raw_dir: str | None) -> dict[str, Any]:
-    """List subdirectories and raster images inside raw_dir (defaulting to tests/images/)."""
+    """List subdirectories and raster images inside raw_dir using project-relative paths."""
     root = get_project_root()
     default_dir = root / "tests" / "images"
     if not default_dir.is_dir():
@@ -278,32 +298,37 @@ def _browse_directory(raw_dir: str | None) -> dict[str, Any]:
         for entry in sorted(target.iterdir(), key=lambda p: p.name.lower()):
             if entry.name.startswith("."):
                 continue
+            rel_entry = to_project_relative_path(entry)
             if entry.is_dir():
-                dirs.append({"name": entry.name, "path": str(entry.resolve())})
+                dirs.append({"name": entry.name, "path": rel_entry})
             elif entry.is_file() and entry.suffix.lower() in _SUPPORTED_EXTS:
                 try:
                     sz = entry.stat().st_size
                 except OSError:
                     sz = 0
-                try:
-                    rel_disp = str(entry.resolve().relative_to(root))
-                except ValueError:
-                    rel_disp = str(entry.resolve())
                 images.append(
                     {
                         "name": entry.name,
-                        "display": rel_disp,
-                        "path": str(entry.resolve()),
+                        "display": rel_entry,
+                        "path": rel_entry,
                         "size_bytes": sz,
                     }
                 )
     except OSError:
         pass
 
-    parent = str(target.parent.resolve()) if target.parent != target else None
+    parent_rel: str | None = None
+    if target != root and target.parent != target:
+        try:
+            target.parent.resolve().relative_to(root)
+            parent_rel = to_project_relative_path(target.parent) or "."
+        except ValueError:
+            parent_rel = None
+
+    cur_rel = to_project_relative_path(target) or "."
     return {
-        "current_dir": str(target),
-        "parent_dir": parent,
+        "current_dir": cur_rel,
+        "parent_dir": parent_rel,
         "directories": dirs,
         "images": images,
     }
@@ -687,6 +712,7 @@ def ensure_studio_daemon(
     try:
         subprocess.Popen(
             cmd,
+            cwd=str(get_project_root()),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

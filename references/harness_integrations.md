@@ -1,35 +1,35 @@
 # Agent Harness Integration Guide
 
-`pixel-guard` supports four standardized integration surfaces across enterprise agent harnesses: **Skill Plug-in (`SKILL.md`)**, **Lifecycle Pre-Tool Hook (`hooks.json`)**, **Model Context Protocol Server (`mcp_config.json`)**, and **Standalone CLI**.
+`pixel-guard` exposes four integration surfaces for AI agent harnesses: **Skill Manifest (`SKILL.md`)**, **Lifecycle Pre-Tool Hook (`assets/hooks.json`)**, **Model Context Protocol Server (`assets/mcp_config.json`)**, and **Standalone CLI (`scripts/pixel_guard_cli.py`)**.
 
 ---
 
 ## 1. Skill Plug-In Discovery (`SKILL.md`)
 
-Place or symlink the `pixel-guard` repository folder inside your harness skill directory:
+Place or symlink the `pixel-guard` directory inside your harness skill directory using relative workspace or user configuration paths:
 
-- **Gemini Enterprise / Antigravity:** `~/.gemini/config/skills/pixel-guard/` or `<workspace>/.agents/skills/pixel-guard/`
-- **Claude Code / Standardized Skill Harnesses:** `.claude/skills/pixel-guard/` or `skills/pixel-guard/`
+- Workspace skill directory: `.agents/skills/pixel-guard/` or `skills/pixel-guard/`
+- User skill directory: `~/.config/agents/skills/pixel-guard/` (or the skill search directory configured by your agent runtime)
 
-When a user references an image file, the agent loads `SKILL.md`, runs `scripts/pixel_guard_cli.py`, forwards only Section 1 verified text into reasoning context, and reports any Section 2 quarantined threats.
+When a user provides a plain-text path to an image file, the agent reads `SKILL.md`, invokes `scripts/pixel_guard_cli.py`, forwards only Section 1 verified text into downstream context, and reports any Section 2 quarantined findings.
 
 ---
 
-## 2. Automated Lifecycle Interception (`hooks.json`)
+## 2. Automated Lifecycle Interception (`assets/hooks.json`)
 
-To guarantee deterministic enforcement even if an agent attempts to read an untrusted image directly via `view_file` or `Read`, copy `assets/hooks.json` into your customization root.
+To enforce deterministic gating if an agent attempts to read an untrusted image directly via `view_file`, `read_file`, `Read`, or `open_file`, copy `assets/hooks.json` into your harness hook configuration.
 
 ### Hook Payload Behavior (`scripts/pre_tool_hook.py`)
 
-1. Reads the JSON `PreToolUse` event from `stdin` (supporting camelCase `toolCall.name` and `toolCall.args`).
-2. Checks whether the target tool (`view_file`, `read_file`, `Read`) targets a raster image path (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.tif`, `.tiff`, `.pbm`, `.pgm`, `.ppm`).
+1. Reads the JSON `PreToolUse` event from `stdin` (supporting `toolCall.name`/`toolCall.args` and `tool_name`/`tool_input`).
+2. Checks whether the target tool targets a raster image path (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.tif`, `.tiff`, `.pbm`, `.pgm`, `.ppm`).
 3. Runs `pixel-guard` on the target image path:
-   - If `CRITICAL INJECTION DETECTED` or `WARNING` (hidden text found), returns `{"decision": "deny", "reason": "..."}` containing the full `pixel-guard` Dual-Section summary so the agent never loads the raw adversarial pixels into its multimodal vision encoder.
+   - If `CRITICAL INJECTION DETECTED` or `WARNING` (hidden or suspicious text found), returns `{"decision": "deny", "reason": "..."}` containing the full `pixel-guard` Dual-Section summary so raw adversarial pixels never enter the multimodal vision encoder.
    - If `PASSED` (clean image) and `PIXEL_GUARD_HOOK_MODE=strict_airgap`, returns `{"decision": "deny", "reason": "..."}` providing the verified Section 1 text directly; under default `PIXEL_GUARD_HOOK_MODE=gate_threats`, returns `{"decision": "allow"}` after confirming zero hidden or adversarial anomalies.
 
 ---
 
-## 3. Model Context Protocol Server (`mcp_config.json`)
+## 3. Model Context Protocol Server (`assets/mcp_config.json`)
 
 Register `scripts/mcp_server.py` using `assets/mcp_config.json` to expose the `inspect_image_security` tool over stdio transport:
 
@@ -41,7 +41,9 @@ Register `scripts/mcp_server.py` using `assets/mcp_config.json` to expose the `i
       "args": ["scripts/mcp_server.py"],
       "env": {
         "PIXEL_GUARD_WCAG_MIN": "3.0",
-        "PIXEL_GUARD_DELTA_E_MIN": "15.0"
+        "PIXEL_GUARD_DELTA_E_MIN": "15.0",
+        "PIXEL_GUARD_ALPHA_MIN": "0.30",
+        "PIXEL_GUARD_MIN_HEIGHT_PX": "8"
       }
     }
   }
@@ -52,15 +54,15 @@ Register `scripts/mcp_server.py` using `assets/mcp_config.json` to expose the `i
 
 - **Tool Name:** `inspect_image_security`
 - **Arguments:**
-  - `image_path` (`string`, required): Local filesystem path to the untrusted image.
+  - `image_path` (`string`, required): Relative or local filesystem path to the untrusted image.
   - `output_format` (`string`, optional, default `"markdown"`): `"markdown"` or `"json"`.
-  - `generate_dashboard` (`boolean`, optional, default `false`): Emit standalone `dashboard.html` alongside the scan.
+  - `generate_dashboard` (`boolean`, optional, default `true`): Write and update `dashboard.html` at the skill root.
 
 ---
 
 ## 4. Environment Variable Configuration Reference
 
-All runtime thresholds can be tuned without code changes:
+Runtime thresholds can be configured via environment variables without modifying code:
 
 | Environment Variable | Default | Description |
 | :--- | :--- | :--- |
@@ -69,8 +71,9 @@ All runtime thresholds can be tuned without code changes:
 | `PIXEL_GUARD_ALPHA_MIN` | `0.30` | Minimum mean stroke opacity (`0.0` to `1.0`) for Section 1. |
 | `PIXEL_GUARD_MIN_HEIGHT_PX` | `8` | Minimum bounding-box pixel height before flagging `MICRO_TEXT_ANOMALY`. |
 | `PIXEL_GUARD_ENTROPY_MAX` | `4.7` | Maximum Shannon entropy (bits/char) on unspaced tokens `>= 24` chars. |
-| `PIXEL_GUARD_MAX_PIXELS` | `36000000` | Maximum allowed pixel count (`width * height`) before rejecting bombs. |
+| `PIXEL_GUARD_MAX_PIXELS` | `36000000` | Maximum allowed pixel count (`width * height`) before rejecting decompression bombs. |
 | `PIXEL_GUARD_MAX_FRAMES` | `8` | Maximum distinct frames analyzed in multi-frame containers. |
 | `PIXEL_GUARD_OCR_WORKERS` | `4` | Thread pool concurrency for local Tesseract passes. |
-| `PIXEL_GUARD_TESSERACT_CMD` | Auto-detected | Optional explicit filesystem path to the `tesseract` binary. |
+| `PIXEL_GUARD_TESSERACT_CMD` | Auto-detected | Optional explicit path or command name for the `tesseract` binary. |
 | `PIXEL_GUARD_HOOK_MODE` | `gate_threats` | `gate_threats` (block threats/hidden text) or `strict_airgap` (always substitute text report). |
+| `PIXEL_GUARD_SYSTEM_THEME` | Auto-detected | Optional explicit fallback theme (`light` or `dark`) embedded into `dashboard.html`. |

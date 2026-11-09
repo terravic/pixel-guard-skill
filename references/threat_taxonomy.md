@@ -15,7 +15,7 @@ This reference documents the Visual Indirect Prompt Injection (V-IPI) attack vec
 | **V-05** | Spatial-Frequency / Embossed Gradients | Dual-edge luminance bevels (`#848484` / `#7C7C7C` on `#808080`) that cancel out under global thresholding. | Pass E (`edge_frequency`): Sobel and Laplacian gradient magnitude with morphological closing and inversion. | `FREQUENCY_EDGE_CAMOUFLAGE` |
 | **V-06** | Iso-Luminant Chrominance Camouflage | Foreground and background share near-identical CIE luminance ($L^*$) while varying subtly in `a*` or `b*` hue channels. | Pass C (`perceptual_channels`): Independent percentile stretching on CIE $L^*a^*b^*$ `a*`, `b*` and HSV `S` planes. | `CHROMINANCE_CAMOUFLAGE` |
 | **V-07** | Multi-Frame Flash Obfuscation | Prompt overrides placed on short-duration animation frames or secondary TIFF pages (`frame_index > 0`). | Stage 2 (`preprocessor.py`): Perceptual pixel-delta frame iterator tagging all secondary frames. | `INACTIVE_FRAME_OBFUSCATION` |
-| **V-08** | Margin Bleed Placement | Micro-instructions positioned within `4px` of outer canvas boundaries where UI previews crop or shadow edges. | Stage 4 (`color_science.py`): Spatial boundary proximity check combined with glyph height profiling. | `MARGIN_BLEED_PLACEMENT` |
+| **V-08** | Margin Bleed Placement | Micro-instructions positioned within `4px` of outer image boundaries where UI previews crop or shadow edges. | Stage 4 (`color_science.py`): Spatial boundary proximity check combined with glyph height profiling. | `MARGIN_BLEED_PLACEMENT` |
 
 ---
 

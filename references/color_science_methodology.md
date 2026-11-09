@@ -9,7 +9,7 @@
 Naive global Otsu thresholding inside a text bounding box frequently inverts foreground and background masks when background padding occupies fewer pixels than bold strokes or when contrast is near zero. `pixel-guard` prevents polarity inversion through a four-step procedure:
 
 1. **Pass-Guided Binarization:** Compute the Otsu binary mask on the originating pass crop (where local contrast has already been stretched for OCR legibility).
-2. **Border Anchor Orientation:** Inspect the 1-pixel perimeter rim of the padded bounding box. Because OCR word boxes sit inside surrounding background canvas, the majority class on the perimeter rim defines the background polarity; the minority interior class defines the foreground stroke mask $M_{\text{fg}}$.
+2. **Border Anchor Orientation:** Inspect the 1-pixel perimeter rim of the padded bounding box. Because OCR word boxes sit inside surrounding background pixels, the majority class on the perimeter rim defines the background polarity; the minority interior class defines the foreground stroke mask $M_{\text{fg}}$.
 3. **Foreground Color ($C_{\text{fg}}$):** Sample the component-wise median RGB triplet from the *original, unaltered* frame across all pixels in $M_{\text{fg}}$.
 4. **Local Background Collar ($C_{\text{bg}}$):** Dilate $M_{\text{fg}}$ with a $3 \times 3$ elliptical structuring element for 3 iterations to form $M_{\text{dilated}}$, then isolate the immediate collar $M_{\text{collar}} = M_{\text{dilated}} \setminus M_{\text{fg}}$. Compute $C_{\text{bg}}$ as the component-wise median RGB triplet across $M_{\text{collar}}$ on the original frame.
 

@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from .color_science import profile_region_visibility
-from .config import ScanConfig
+from .config import ScanConfig, to_project_relative_path
 from .dashboard import detect_host_system_theme
 from .heuristics import evaluate_text_threats
 from .metadata import harvest_metadata
@@ -23,13 +23,11 @@ SKILL_VERSION = "1.0.0"
 
 _SEVERITY_RANK = {"CLEAN": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 
-# Standard benign encoder/software strings that do not warrant quarantine on their own
+# Standard benign open-source encoder library tags that do not warrant quarantine on their own
 _BENIGN_ENCODER_PREFIXES = (
-    "adobe image",
     "pillow",
     "libpng",
     "gimp",
-    "paint.net",
     "imagemagick",
     "lavc",
 )
@@ -52,7 +50,7 @@ def _derive_category_label(anomaly_flags: tuple[str, ...], threat_flags: tuple[s
     if "INACTIVE_FRAME_OBFUSCATION" in anomaly_flags:
         return "Multi-Frame / Inactive Layer Obfuscation"
     if "MARGIN_BLEED_PLACEMENT" in anomaly_flags:
-        return "Canvas Margin Bleed Placement"
+        return "Border Margin Bleed Placement"
     if threat_flags:
         return "Visible Adversarial Prompt Injection"
     return "Camouflaged / Anomalous Text Region"
@@ -87,6 +85,10 @@ def scan_image(image_path: str | Path, config: ScanConfig | None = None) -> Scan
     # Stage 2: Multi-Frame Decomposition & Deterministic Vision Passes
     frames = extract_distinct_frames(validated.path, active_config)
     frame_by_idx = {f.frame_index: f for f in frames}
+    frame_dims = {
+        f.frame_index: (int(f.composited_rgb.shape[1]), int(f.composited_rgb.shape[0]))
+        for f in frames
+    }
     passes, analyzed_channels = generate_vision_passes(frames, active_config)
 
     # Stage 3: Air-Gapped Parallel Local OCR & Spatial Deduplication
@@ -94,6 +96,7 @@ def scan_image(image_path: str | Path, config: ScanConfig | None = None) -> Scan
         passes=passes,
         native_dims=(validated.width, validated.height),
         config=active_config,
+        frame_dims=frame_dims,
     )
 
     visible_items: list[VisibleTextItem] = []
@@ -233,7 +236,7 @@ def scan_image(image_path: str | Path, config: ScanConfig | None = None) -> Scan
         skill_name=SKILL_NAME,
         version=SKILL_VERSION,
         image_filename=validated.filename,
-        image_path=validated.path,
+        image_path=to_project_relative_path(validated.path),
         sha256=validated.sha256,
         format=validated.detected_format,
         width=validated.width,

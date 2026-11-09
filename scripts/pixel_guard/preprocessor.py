@@ -18,12 +18,13 @@ logger = logging.getLogger("pixel_guard.preprocessor")
 
 @dataclass(frozen=True)
 class ExtractedFrame:
-    """Native RGBA and white-composited RGB arrays for a distinct container frame."""
+    """Native RGBA and white-composited RGB arrays for a distinct container page or frame."""
 
     frame_index: int
     raw_rgba: np.ndarray        # uint8 (H, W, 4), preserving uncomposited RGB under alpha=0
     composited_rgb: np.ndarray  # uint8 (H, W, 3), alpha-composited onto opaque white (#FFFFFF)
     has_alpha_channel: bool
+    is_document_page: bool = False
 
 
 def _pil_frame_to_raw_rgba(frame: Image.Image) -> tuple[np.ndarray, bool]:
@@ -47,11 +48,12 @@ def composite_rgba_on_white(rgba: np.ndarray) -> np.ndarray:
 
 
 def extract_distinct_frames(image_path: str | Path, config: ScanConfig) -> list[ExtractedFrame]:
-    """Iterate container frames, skipping near-identical animation duplicates."""
+    """Iterate container pages/frames, preserving all TIFF pages and skipping identical animation holds."""
     frames: list[ExtractedFrame] = []
     prev_gray: np.ndarray | None = None
 
     with Image.open(image_path) as img:
+        is_tiff = (getattr(img, "format", "") or "").upper() == "TIFF"
         for idx, raw_frame in enumerate(ImageSequence.Iterator(img)):
             if len(frames) >= config.max_frames:
                 logger.debug("Reached max_frames=%d limit on %s", config.max_frames, image_path)
@@ -61,9 +63,10 @@ def extract_distinct_frames(image_path: str | Path, config: ScanConfig) -> list[
             comp_rgb = composite_rgba_on_white(rgba)
             gray = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2GRAY)
 
-            if prev_gray is not None and prev_gray.shape == gray.shape:
-                mean_diff = float(np.mean(cv2.absdiff(prev_gray, gray)))
-                if mean_diff < config.frame_diff_threshold:
+            if not is_tiff and prev_gray is not None and prev_gray.shape == gray.shape:
+                diff_arr = cv2.absdiff(prev_gray, gray)
+                mean_diff = float(np.mean(diff_arr))
+                if mean_diff < config.frame_diff_threshold and int(diff_arr.max()) < 3:
                     continue
 
             prev_gray = gray
@@ -73,6 +76,7 @@ def extract_distinct_frames(image_path: str | Path, config: ScanConfig) -> list[
                     raw_rgba=rgba,
                     composited_rgb=comp_rgb,
                     has_alpha_channel=has_alpha,
+                    is_document_page=is_tiff,
                 )
             )
 
@@ -81,12 +85,19 @@ def extract_distinct_frames(image_path: str | Path, config: ScanConfig) -> list[
 
 def _morphological_deviation(channel: np.ndarray, kernel_size: int = 35) -> np.ndarray:
     """Compute halo-free, bridge-free local stroke deviation |ch - medianBlur(ch)|."""
+    h, w = channel.shape[:2]
+    if h * w >= 900_000 and kernel_size >= 31:
+        half_k = max(3, (kernel_size // 2) | 1)
+        small = cv2.resize(channel, (max(1, w // 2), max(1, h // 2)), interpolation=cv2.INTER_AREA)
+        small_bg = cv2.medianBlur(small, half_k)
+        bg = cv2.resize(small_bg, (w, h), interpolation=cv2.INTER_LINEAR)
+        return cv2.absdiff(channel, bg)
     k = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
     bg = cv2.medianBlur(channel, k)
     return cv2.absdiff(channel, bg)
 
 
-def _amplify_deviation_to_ocr_canvas(
+def _amplify_deviation_to_ocr_surface(
     deviation: np.ndarray,
     noise_floor: float = 2.5,
     min_cut: float = 1.5,
@@ -156,7 +167,7 @@ def generate_vision_passes(
 
         gray_span = int(gray.max()) - int(gray.min())
 
-        # Pass A: Baseline human-visible RGB -> Grayscale (invert dark-mode canvases for LSTM OCR)
+        # Pass A: Baseline human-visible RGB -> Grayscale (invert dark-mode backgrounds for LSTM OCR)
         if gray_span >= 15:
             baseline_gray = (255 - gray) if float(np.median(gray)) < 96.0 else gray
             passes.append(
@@ -174,7 +185,7 @@ def generate_vision_passes(
         if gray_span >= 2:
             deviation = _morphological_deviation(gray, kernel_size=35)
             if int(deviation.max()) >= 2:
-                micro_contrast = _amplify_deviation_to_ocr_canvas(deviation, noise_floor=2.5)
+                micro_contrast = _amplify_deviation_to_ocr_surface(deviation, noise_floor=2.5)
                 passes.append(
                     PassImage(
                         pass_id="clahe_contrast",
@@ -194,7 +205,7 @@ def generate_vision_passes(
                     max_h=max(12, config.micro_text_height_px + 4),
                 ):
                     roi_dev = deviation[ry : ry + rh, rx : rx + rw]
-                    roi_norm = _amplify_deviation_to_ocr_canvas(roi_dev, noise_floor=2.5, min_cut=0.0)
+                    roi_norm = _amplify_deviation_to_ocr_surface(roi_dev, noise_floor=2.5, min_cut=0.0)
                     scale = 4.0
                     upscaled = cv2.resize(
                         roi_norm,
@@ -231,14 +242,14 @@ def generate_vision_passes(
             dev_s = _morphological_deviation(hsv[:, :, 1], kernel_size=35)
             chroma_dev = np.maximum(np.maximum(dev_a, dev_b), dev_s // 2)
             if int(chroma_dev.max()) >= 3:
-                chroma_canvas = _amplify_deviation_to_ocr_canvas(chroma_dev, noise_floor=2.5)
+                chroma_surface = _amplify_deviation_to_ocr_surface(chroma_dev, noise_floor=2.5)
                 passes.append(
                     PassImage(
                         pass_id="perceptual_chroma",
                         display_label="Pass C (CIE LAB Chrominance & HSV Saturation Isolation)",
                         channel_group="LAB/HSV",
                         frame_index=f_idx,
-                        image=chroma_canvas,
+                        image=chroma_surface,
                         psm_modes=(6,),
                     )
                 )
@@ -252,14 +263,14 @@ def generate_vision_passes(
             if alpha_max - alpha_min >= 2:
                 alpha_dev = _morphological_deviation(alpha, kernel_size=35)
                 if int(alpha_dev.max()) >= 2:
-                    alpha_mask_canvas = _amplify_deviation_to_ocr_canvas(alpha_dev, noise_floor=2.0)
+                    alpha_mask_surface = _amplify_deviation_to_ocr_surface(alpha_dev, noise_floor=2.0)
                     passes.append(
                         PassImage(
                             pass_id="alpha_partial",
                             display_label="Pass D (Alpha Channel Opacity Isolation)",
                             channel_group="Alpha",
                             frame_index=f_idx,
-                            image=alpha_mask_canvas,
+                            image=alpha_mask_surface,
                             psm_modes=(6, 11),
                         )
                     )
@@ -275,14 +286,14 @@ def generate_vision_passes(
                     isolated_raw = np.where(low_alpha_mask, raw_gray, bg_fill).astype(np.uint8)
                     raw_dev = _morphological_deviation(isolated_raw, kernel_size=35)
                     if int(raw_dev.max()) >= 2:
-                        zero_alpha_canvas = _amplify_deviation_to_ocr_canvas(raw_dev, noise_floor=2.5)
+                        zero_alpha_surface = _amplify_deviation_to_ocr_surface(raw_dev, noise_floor=2.5)
                         passes.append(
                             PassImage(
                                 pass_id="alpha_zero_rgb",
                                 display_label="Pass D (Zero/Low-Alpha Raw RGB Extraction)",
                                 channel_group="Alpha",
                                 frame_index=f_idx,
-                                image=zero_alpha_canvas,
+                                image=zero_alpha_surface,
                                 psm_modes=(6, 11),
                             )
                         )
@@ -298,14 +309,14 @@ def generate_vision_passes(
                 scaled_edge = np.clip((grad_mag / max(p99, 12.0)) * 255.0, 0.0, 255.0).astype(np.uint8)
                 close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
                 closed_edge = cv2.morphologyEx(scaled_edge, cv2.MORPH_CLOSE, close_k)
-                edge_canvas = 255 - closed_edge
+                edge_surface = 255 - closed_edge
                 passes.append(
                     PassImage(
                         pass_id="edge_frequency",
                         display_label="Pass E (High-Pass Sobel/Laplacian Frequency Residual)",
                         channel_group="High-Pass",
                         frame_index=f_idx,
-                        image=edge_canvas,
+                        image=edge_surface,
                         psm_modes=(6,),
                     )
                 )

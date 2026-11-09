@@ -173,7 +173,7 @@ def _extract_safe_xmp_strings(xmp_xml: str) -> list[str]:
                 if clean and len(clean) >= 3:
                     extracted.append(clean)
             for attr_name, attr_val in elem.attrib.items():
-                if "ns.adobe.com" in attr_val or "w3.org" in attr_val or "purl.org" in attr_val:
+                if attr_val.startswith(("http://", "https://")) and ("w3.org" in attr_val or "purl.org" in attr_val):
                     continue
                 local_attr = attr_name.split("}")[-1]
                 if local_attr in {"about", "parseType", "lang", "xmptk"}:
@@ -230,7 +230,6 @@ def harvest_metadata(image_path: str | Path, detected_format: str) -> list[Metad
                     if isinstance(raw_val, (bytes, str, tuple)):
                         text_val = sanitize_metadata_text(raw_val, tag_name=str(tag_name))
                         if text_val and not text_val.isdigit():
-                            # Avoid duplicate source names if piexif already captured identical value
                             if not any(e.content == text_val for e in entries):
                                 _add(f"EXIF:{tag_name}", text_val)
 
@@ -250,7 +249,7 @@ def harvest_metadata(image_path: str | Path, detected_format: str) -> list[Metad
             for info_key, info_val in (img.info or {}).items():
                 if info_key in {"exif", "icc_profile", "dpi", "gamma", "jfif", "jfif_version", "jfif_unit", "jfif_density", "transparency", "loop", "duration", "background", "aspect"}:
                     continue
-                if info_key.lower() in {"xml:com.adobe.xmp", "xmp"}:
+                if "xmp" in info_key.lower():
                     xmp_str = sanitize_metadata_text(info_val)
                     for xmp_piece in _extract_safe_xmp_strings(
                         info_val.decode("utf-8", errors="ignore") if isinstance(info_val, bytes) else str(info_val)
@@ -272,16 +271,16 @@ def harvest_metadata(image_path: str | Path, detected_format: str) -> list[Metad
             if not any(e.content == chunk_val for e in entries):
                 _add(chunk_source, chunk_val)
 
-    # 4. Scan raw JPEG APP1 XMP segment if present and missed by Pillow
+    # 4. Scan raw JPEG APP1 XMP packet if present and missed by Pillow
     if detected_format == "JPEG":
         try:
             raw_bytes = path.read_bytes()
-            xmp_marker = b"http://ns.adobe.com/xap/1.0/\x00"
-            idx = raw_bytes.find(xmp_marker)
+            start_tag = b"<x:xmpmeta"
+            idx = raw_bytes.find(start_tag)
             if idx != -1:
                 end_idx = raw_bytes.find(b"</x:xmpmeta>", idx)
                 if end_idx != -1:
-                    packet = raw_bytes[idx + len(xmp_marker) : end_idx + 12].decode("utf-8", errors="ignore")
+                    packet = raw_bytes[idx : end_idx + 12].decode("utf-8", errors="ignore")
                     for xmp_piece in _extract_safe_xmp_strings(packet):
                         if not any(e.content == xmp_piece for e in entries):
                             _add("XMP:Packet", xmp_piece)

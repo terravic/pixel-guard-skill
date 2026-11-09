@@ -8,9 +8,6 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pixel Guard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <style>
     :root,
     [data-theme="light"] {
@@ -26,9 +23,9 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       --viz-indigo: #4F46E5;
       --viz-emerald: #059669;
       --viz-rose: #E11D48;
-      --font-ui: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --font-display: "Instrument Serif", Georgia, serif;
-      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --font-ui: "DM Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
 
     [data-theme="dark"] {
@@ -148,10 +145,15 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     .segmented-group {
       display: inline-flex;
+      align-items: center;
       border: 1px solid var(--border-token);
       border-radius: 6px;
       background-color: var(--bg-viewport);
       overflow: hidden;
+    }
+
+    .segmented-group.has-multipage {
+      border-color: var(--viz-teal);
     }
 
     .seg-btn {
@@ -175,6 +177,31 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       background-color: var(--bg-surface);
       color: var(--text-primary);
       font-weight: 600;
+    }
+
+    .seg-btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    .page-arrow-btn {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 5px 10px;
+      color: var(--text-primary);
+      background-color: var(--bg-surface);
+    }
+
+    .page-counter-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      padding: 4px 10px;
+      border-right: 1px solid var(--border-token);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      user-select: none;
     }
 
     .feedback-banner {
@@ -236,8 +263,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       border: none;
       border-right: 1px solid var(--border-token);
       color: var(--text-secondary);
-      width: 34px;
-      height: 30px;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 10px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -251,16 +280,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     .theme-btn.active {
       background-color: var(--bg-surface);
       color: var(--text-primary);
-    }
-
-    .theme-btn svg {
-      width: 15px;
-      height: 15px;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 1.8;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+      font-weight: 600;
     }
 
     .bento-workspace {
@@ -573,31 +593,9 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="nav-controls">
       <span class="status-pill" id="hdr-status" data-status="PASSED">PASSED</span>
       <div class="theme-selector" role="group" aria-label="Appearance Theme Selector">
-        <button type="button" id="theme-btn-light" class="theme-btn" title="Light Theme" aria-label="Light Theme" data-theme-mode="light" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="4"></circle>
-            <line x1="12" y1="2" x2="12" y2="5"></line>
-            <line x1="12" y1="19" x2="12" y2="22"></line>
-            <line x1="4.93" y1="4.93" x2="7.05" y2="7.05"></line>
-            <line x1="16.95" y1="16.95" x2="19.07" y2="19.07"></line>
-            <line x1="2" y1="12" x2="5" y2="12"></line>
-            <line x1="19" y1="12" x2="22" y2="12"></line>
-            <line x1="4.93" y1="19.07" x2="7.05" y2="16.95"></line>
-            <line x1="16.95" y1="7.05" x2="19.07" y2="4.93"></line>
-          </svg>
-        </button>
-        <button type="button" id="theme-btn-dark" class="theme-btn" title="Dark Theme" aria-label="Dark Theme" data-theme-mode="dark" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </button>
-        <button type="button" id="theme-btn-system" class="theme-btn active" title="System Theme" aria-label="System Theme" data-theme-mode="system" aria-pressed="true">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-            <line x1="8" y1="21" x2="16" y2="21"></line>
-            <line x1="12" y1="17" x2="12" y2="21"></line>
-          </svg>
-        </button>
+        <button type="button" id="theme-btn-light" class="theme-btn" title="Light Theme" aria-label="Light Theme" data-theme-mode="light" aria-pressed="false">Light</button>
+        <button type="button" id="theme-btn-dark" class="theme-btn" title="Dark Theme" aria-label="Dark Theme" data-theme-mode="dark" aria-pressed="false">Dark</button>
+        <button type="button" id="theme-btn-system" class="theme-btn active" title="System Theme" aria-label="System Theme" data-theme-mode="system" aria-pressed="true">System</button>
       </div>
     </div>
   </header>
@@ -641,6 +639,11 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="pane-header">
         <h2 class="pane-title">Inspected Image</h2>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div class="segmented-group" id="page-nav-group" role="group" aria-label="Document Page Navigation">
+            <button type="button" class="seg-btn page-arrow-btn" id="page-prev-btn" title="Previous Page" aria-label="Previous Page">&lt;</button>
+            <span class="page-counter-label" id="page-indicator-label">Page 1 of 1</span>
+            <button type="button" class="seg-btn page-arrow-btn" id="page-next-btn" title="Next Page" aria-label="Next Page">&gt;</button>
+          </div>
           <div class="segmented-group" role="group" aria-label="Image Render Mode">
             <button type="button" class="seg-btn active" id="view-btn-original">Original Image</button>
             <button type="button" class="seg-btn" id="view-btn-reveal">Enhanced Reveal</button>
@@ -748,11 +751,37 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         themeMode: localStorage.getItem(STORAGE_KEY) || "system",
         activeTheme: "light",
         imageViewMode: "original",
+        activeFrameIndex: 0,
         showBoxes: true,
         selectedQuarantineId: null
       };
 
       const mediaQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+      function getPreviewFrames(r) {
+        const previews = (r && r.preview_images) ? r.preview_images : {};
+        if (Array.isArray(previews.frames) && previews.frames.length > 0) {
+          return previews.frames;
+        }
+        return [
+          {
+            frame_index: 0,
+            width: (r && r.dimensions) ? r.dimensions.width : 1,
+            height: (r && r.dimensions) ? r.dimensions.height : 1,
+            original_data_uri: previews.original_data_uri || "",
+            reveal_data_uri: previews.reveal_data_uri || previews.original_data_uri || ""
+          }
+        ];
+      }
+
+      function setActivePage(pageIdx) {
+        const frames = getPreviewFrames(state.report);
+        const clamped = Math.min(Math.max(0, pageIdx), Math.max(0, frames.length - 1));
+        if (clamped === state.activeFrameIndex) return;
+        state.activeFrameIndex = clamped;
+        renderSummaryAndTables();
+        renderInspectedImageAndBoxes();
+      }
 
       function setFeedback(message, tone) {
         const banner = document.getElementById("scan-feedback-banner");
@@ -833,6 +862,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       function renderSummaryAndTables() {
         const r = state.report;
+        const frames = getPreviewFrames(r);
+        const isMultiPage = frames.length > 1 || (r.frames_total && r.frames_total > 1);
+        const unitLabel = r.format === "TIFF" ? "Pages inspected: " : "Frames inspected: ";
+
         const pill = document.getElementById("hdr-status");
         pill.textContent = r.scan_status;
         pill.setAttribute("data-status", r.scan_status);
@@ -841,7 +874,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         document.getElementById("val-filename").textContent = r.image_filename;
         document.getElementById("val-format").textContent = r.format + " (" + r.dimensions.channels + " channels)";
         document.getElementById("val-dims").textContent = r.dimensions.width + " x " + r.dimensions.height + " px";
-        document.getElementById("val-frames").textContent = "Frames inspected: " + r.frames_analyzed + " / " + (r.frames_total || r.frames_analyzed);
+        document.getElementById("val-frames").textContent = unitLabel + r.frames_analyzed + " / " + (r.frames_total || r.frames_analyzed);
         document.getElementById("val-visible").textContent = String(r.visible_count);
         document.getElementById("val-quarantined").textContent = String(r.quarantined_count);
         document.getElementById("val-latency").textContent = r.elapsed_ms.toFixed(1) + " ms";
@@ -853,10 +886,16 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           sec1Box.textContent = "[No verified human-visible safe text detected]";
           sec1Body.innerHTML = "<tr><td colspan=\"5\">Zero human-visible clean regions recorded.</td></tr>";
         } else {
-          sec1Box.textContent = r.section_1_visible_text.map(function (item) { return item.text; }).join("\n");
+          sec1Box.textContent = r.section_1_visible_text.map(function (item) {
+            const pfx = isMultiPage ? "[Page " + ((item.frame_index || 0) + 1) + "] " : "";
+            return pfx + item.text;
+          }).join("\n");
           sec1Body.innerHTML = r.section_1_visible_text.map(function (item, idx) {
-            return "<tr>" +
-              "<td>V" + (idx + 1) + "</td>" +
+            const fIdx = item.frame_index || 0;
+            const pageSuffix = isMultiPage ? " (P" + (fIdx + 1) + ")" : "";
+            const clickStyle = isMultiPage ? " style=\"cursor:pointer;\"" : "";
+            return "<tr data-jump-frame=\"" + fIdx + "\"" + clickStyle + ">" +
+              "<td>V" + (idx + 1) + pageSuffix + "</td>" +
               "<td>[" + item.bbox.join(", ") + "]</td>" +
               "<td>" + item.contrast_ratio.toFixed(2) + ":1</td>" +
               "<td>" + item.delta_e.toFixed(1) + "</td>" +
@@ -877,9 +916,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             if (typeof item.delta_e === "number") metricsParts.push("dE " + item.delta_e.toFixed(1));
             if (typeof item.font_height_px === "number") metricsParts.push("H " + item.font_height_px + "px");
             if (typeof item.mean_alpha === "number" && item.mean_alpha < 0.999) metricsParts.push("Alpha " + item.mean_alpha.toFixed(2));
+            const fIdx = item.frame_index || 0;
+            const pageSuffix = (isMultiPage && item.bbox) ? " (P" + (fIdx + 1) + ")" : "";
             const rowCls = state.selectedQuarantineId === item.item_id ? " class=\"highlighted-row\"" : "";
-            return "<tr id=\"quar-row-" + item.item_id + "\"" + rowCls + ">" +
-              "<td><strong>#" + item.item_id + "</strong></td>" +
+            const clickStyle = item.bbox ? " style=\"cursor:pointer;\"" : "";
+            return "<tr id=\"quar-row-" + item.item_id + "\" data-jump-frame=\"" + fIdx + "\" data-quar-row-id=\"" + item.item_id + "\"" + rowCls + clickStyle + ">" +
+              "<td><strong>#" + item.item_id + pageSuffix + "</strong></td>" +
               "<td><span class=\"risk-badge risk-" + escapeHtml(item.risk_level) + "\">" + escapeHtml(item.risk_level) + "</span></td>" +
               "<td>" + escapeHtml(item.detection_method) + "</td>" +
               "<td>" + (metricsParts.join(" | ") || "Metadata Container") + "</td>" +
@@ -888,6 +930,19 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
               "</tr>";
           }).join("");
         }
+
+        Array.prototype.forEach.call(document.querySelectorAll("tr[data-jump-frame]"), function (tr) {
+          tr.addEventListener("click", function () {
+            const targetFrame = parseInt(tr.getAttribute("data-jump-frame"), 10) || 0;
+            const qRowId = tr.getAttribute("data-quar-row-id");
+            if (qRowId) {
+              state.selectedQuarantineId = parseInt(qRowId, 10);
+            }
+            state.activeFrameIndex = targetFrame;
+            renderSummaryAndTables();
+            renderInspectedImageAndBoxes();
+          });
+        });
       }
 
       function renderInspectedImageAndBoxes() {
@@ -896,12 +951,39 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const svgEl = document.getElementById("bbox-overlay-svg");
         const metaPill = document.getElementById("metadata-only-pill");
         const hintEl = document.getElementById("reveal-hint-label");
+        const pageNavGroup = document.getElementById("page-nav-group");
+        const pagePrevBtn = document.getElementById("page-prev-btn");
+        const pageNextBtn = document.getElementById("page-next-btn");
+        const pageLabelEl = document.getElementById("page-indicator-label");
         if (!imgEl || !svgEl) return;
 
-        const previews = r.preview_images || {};
+        const frames = getPreviewFrames(r);
+        const totalPages = Math.max(1, frames.length);
+        if (state.activeFrameIndex >= totalPages) {
+          state.activeFrameIndex = totalPages - 1;
+        }
+        if (state.activeFrameIndex < 0) {
+          state.activeFrameIndex = 0;
+        }
+        const pageIdx = state.activeFrameIndex;
+        const activeFrame = frames[pageIdx] || frames[0];
+
+        if (pageLabelEl) {
+          pageLabelEl.textContent = "Page " + (pageIdx + 1) + " of " + totalPages;
+        }
+        if (pagePrevBtn) {
+          pagePrevBtn.disabled = (pageIdx <= 0);
+        }
+        if (pageNextBtn) {
+          pageNextBtn.disabled = (pageIdx >= totalPages - 1);
+        }
+        if (pageNavGroup) {
+          pageNavGroup.classList.toggle("has-multipage", totalPages > 1);
+        }
+
         const activeUri = state.imageViewMode === "reveal"
-          ? (previews.reveal_data_uri || previews.original_data_uri || "")
-          : (previews.original_data_uri || "");
+          ? (activeFrame.reveal_data_uri || activeFrame.original_data_uri || "")
+          : (activeFrame.original_data_uri || "");
 
         if (activeUri) {
           imgEl.src = activeUri;
@@ -912,17 +994,30 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         }
 
         if (hintEl) {
-          if (state.imageViewMode === "reveal" && previews.reveal_frame_index > 0) {
-            hintEl.textContent = "Showing Enhanced Reveal (Frame " + previews.reveal_frame_index + ")";
-          } else if (state.imageViewMode === "reveal") {
-            hintEl.textContent = "Showing Enhanced Reveal (contrast, chroma & alpha amplified)";
+          const otherFlaggedPages = [];
+          if (totalPages > 1) {
+            r.section_2_quarantined_items.forEach(function (q) {
+              const qf = q.frame_index || 0;
+              if (q.bbox && qf !== pageIdx && otherFlaggedPages.indexOf(qf + 1) === -1) {
+                otherFlaggedPages.push(qf + 1);
+              }
+            });
+          }
+          if (state.imageViewMode === "reveal") {
+            hintEl.textContent = totalPages > 1
+              ? "Showing Enhanced Reveal for Page " + (pageIdx + 1) + " of " + totalPages
+              : "Showing Enhanced Reveal (contrast, chroma & alpha amplified)";
+          } else if (otherFlaggedPages.length > 0) {
+            hintEl.textContent = "Quarantined finding on Page " + otherFlaggedPages.join(", ") + " -- use < > page arrows to inspect";
+          } else if (totalPages > 1) {
+            hintEl.textContent = "Viewing Page " + (pageIdx + 1) + " of " + totalPages + " -- use < > arrows to step pages";
           } else {
             hintEl.textContent = "Switch to \"Enhanced Reveal\" to visualize invisible ink or alpha layers";
           }
         }
 
-        const origW = Math.max(1, r.dimensions.width);
-        const origH = Math.max(1, r.dimensions.height);
+        const origW = Math.max(1, activeFrame.width || r.dimensions.width);
+        const origH = Math.max(1, activeFrame.height || r.dimensions.height);
         svgEl.setAttribute("viewBox", "0 0 " + origW + " " + origH);
 
         const hasMetadataOnly = r.section_2_quarantined_items.length > 0 &&
@@ -941,8 +1036,9 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const pad = Math.max(4, strokeScale);
         let svgMarkup = "";
 
-        // 1. Section 1 Verified Visible Boxes (Emerald)
+        // 1. Section 1 Verified Visible Boxes on active page (Emerald)
         r.section_1_visible_text.forEach(function (v, idx) {
+          if ((v.frame_index || 0) !== pageIdx) return;
           const x = Math.max(0, v.bbox[0] - pad);
           const y = Math.max(0, v.bbox[1] - pad);
           const w = Math.min(origW - x, v.bbox[2] + pad * 2);
@@ -961,9 +1057,9 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             "</g>";
         });
 
-        // 2. Section 2 Quarantined / Tampered Boxes (Deep Rose / Amber)
+        // 2. Section 2 Quarantined / Tampered Boxes on active page (Deep Rose / Amber)
         r.section_2_quarantined_items.forEach(function (q) {
-          if (!q.bbox) return;
+          if (!q.bbox || (q.frame_index || 0) !== pageIdx) return;
           const isCrit = q.risk_level === "CRITICAL";
           const color = isCrit ? PALETTE.rose : PALETTE.amber;
           const fillRgba = isCrit ? "rgba(225, 29, 72, 0.16)" : "rgba(217, 119, 6, 0.16)";
@@ -1083,14 +1179,17 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       function applyNewScanReport(newReport) {
         state.report = newReport;
+        state.activeFrameIndex = 0;
         state.selectedQuarantineId = null;
         setImageViewMode("original");
         renderVisualizations();
+        const frames = getPreviewFrames(newReport);
+        const pageInfo = frames.length > 1 ? " [" + frames.length + " pages]" : "";
         const tone = newReport.scan_status === "PASSED"
           ? "ok"
           : (newReport.scan_status === "WARNING" ? "warn" : "error");
         setFeedback(
-          "Executed Pixel Guard on " + newReport.image_filename + " -> " + newReport.scan_status +
+          "Executed Pixel Guard on " + newReport.image_filename + pageInfo + " -> " + newReport.scan_status +
           " (" + newReport.elapsed_ms.toFixed(1) + " ms)",
           tone
         );
@@ -1163,6 +1262,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const btnOrig = document.getElementById("view-btn-original");
         const btnRev = document.getElementById("view-btn-reveal");
         const toggleBoxesBtn = document.getElementById("toggle-boxes-btn");
+        const pagePrevBtn = document.getElementById("page-prev-btn");
+        const pageNextBtn = document.getElementById("page-next-btn");
 
         if (fileInput) {
           fileInput.addEventListener("change", function () {
@@ -1173,6 +1274,28 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             }
           });
         }
+
+        if (pagePrevBtn) {
+          pagePrevBtn.addEventListener("click", function () {
+            setActivePage(state.activeFrameIndex - 1);
+          });
+        }
+        if (pageNextBtn) {
+          pageNextBtn.addEventListener("click", function () {
+            setActivePage(state.activeFrameIndex + 1);
+          });
+        }
+
+        document.addEventListener("keydown", function (ev) {
+          const activeTag = document.activeElement ? document.activeElement.tagName : "";
+          if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+          if (getPreviewFrames(state.report).length <= 1) return;
+          if (ev.key === "ArrowLeft") {
+            setActivePage(state.activeFrameIndex - 1);
+          } else if (ev.key === "ArrowRight") {
+            setActivePage(state.activeFrameIndex + 1);
+          }
+        });
 
         if (btnOrig) btnOrig.addEventListener("click", function () { setImageViewMode("original"); });
         if (btnRev) btnRev.addEventListener("click", function () { setImageViewMode("reveal"); });

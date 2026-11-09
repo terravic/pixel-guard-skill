@@ -42,7 +42,7 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert 'id="os-file-dialog-label"' not in html
     assert "/api/scan-upload" in html
 
-    # 3. Required three-icon SVG theme buttons and attributes
+    # 3. Theme selector text buttons and persistence attributes
     for btn_id, mode in (
         ('id="theme-btn-light"', 'data-theme-mode="light"'),
         ('id="theme-btn-dark"', 'data-theme-mode="dark"'),
@@ -83,14 +83,19 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert 'id="bbox-overlay-svg"' in html
     assert 'id="view-btn-original"' in html
     assert 'id="view-btn-reveal"' in html
+    assert 'id="page-nav-group"' in html
+    assert 'id="page-prev-btn"' in html
+    assert 'id="page-indicator-label"' in html
+    assert 'id="page-next-btn"' in html
     assert "data:image/png;base64," in html
+    assert '"image_path": "tests/images/v3_micro_text.png"' in html
 
 
 def test_dashboard_studio_load_image_upload_scan_path_and_sse(
     tmp_path: Path,
     synthetic_fixtures: dict[str, Path],
 ) -> None:
-    """Verify Studio server handles Load Image browse/upload, Scan Path, disk sync, and SSE."""
+    """Verify Studio server handles Load Image browse/upload, multi-page TIFF frames, Scan Path, disk sync, and SSE."""
     initial_report = scan_image(synthetic_fixtures["clean_control"])
     dash_file = tmp_path / "live_dashboard.html"
     write_dashboard_file(initial_report, output_path=dash_file)
@@ -115,7 +120,7 @@ def test_dashboard_studio_load_image_upload_scan_path_and_sse(
         with urllib.request.urlopen(f"{base_url}/api/browse", timeout=5) as b_resp:
             assert b_resp.status == 200
             browse_payload = json.loads(b_resp.read().decode("utf-8"))
-            assert browse_payload["current_dir"].endswith("tests/images")
+            assert browse_payload["current_dir"] == "tests/images"
             assert len(browse_payload["images"]) >= 30
 
         with urllib.request.urlopen(f"{base_url}/api/fixtures", timeout=5) as f_resp:
@@ -144,8 +149,28 @@ def test_dashboard_studio_load_image_upload_scan_path_and_sse(
         # Verify disk dashboard.html was updated automatically with the uploaded scan
         assert "v1_low_contrast.png" in dash_file.read_text(encoding="utf-8")
 
-        # 3. POST /api/scan-path (simulating Scan Path input bar)
-        path_body = json.dumps({"image_path": str(synthetic_fixtures["v4_exif_injection"])}).encode("utf-8")
+        # 2b. POST /api/scan-upload on multi-page TIFF returns all pages in preview_images.frames
+        tiff_bytes = synthetic_fixtures["v7b_multipage_tiff_hidden"].read_bytes()
+        tiff_req = urllib.request.Request(
+            f"{base_url}/api/scan-upload",
+            data=tiff_bytes,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "X-Filename": "v7b_multipage_tiff_hidden.tiff",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(tiff_req, timeout=15) as tiff_resp:
+            assert tiff_resp.status == 200
+            tiff_report = json.loads(tiff_resp.read().decode("utf-8"))
+            previews = tiff_report["preview_images"]
+            assert previews["frame_count"] == 3
+            assert len(previews["frames"]) == 3
+            assert previews["frames"][0]["original_data_uri"] != previews["frames"][1]["original_data_uri"]
+            assert previews["frames"][1]["original_data_uri"] != previews["frames"][2]["original_data_uri"]
+
+        # 3. POST /api/scan-path (programmatic relative path scan)
+        path_body = json.dumps({"image_path": "tests/images/v4_exif_injection.jpg"}).encode("utf-8")
         path_req = urllib.request.Request(
             f"{base_url}/api/scan-path",
             data=path_body,
@@ -156,6 +181,7 @@ def test_dashboard_studio_load_image_upload_scan_path_and_sse(
             assert p_resp.status == 200
             p_report = json.loads(p_resp.read().decode("utf-8"))
             assert p_report["image_filename"] == "v4_exif_injection.jpg"
+            assert p_report["image_path"] == "tests/images/v4_exif_injection.jpg"
             assert p_report["scan_status"] == "CRITICAL INJECTION DETECTED"
 
         # 4. POST /api/scan-upload rejects polyglot file with structured 400 error JSON
@@ -221,7 +247,7 @@ def test_pre_tool_hook_blocks_adversarial_images_and_allows_clean(
 ) -> None:
     """Verify PreToolUse hook denies unscreened reads of camouflaged/injected images."""
     non_image = evaluate_hook_payload(
-        {"toolCall": {"name": "view_file", "args": {"AbsolutePath": "/workspace/README.md"}}}
+        {"toolCall": {"name": "view_file", "args": {"file_path": "README.md"}}}
     )
     assert non_image["decision"] == "allow"
 
@@ -229,7 +255,7 @@ def test_pre_tool_hook_blocks_adversarial_images_and_allows_clean(
         {
             "toolCall": {
                 "name": "view_file",
-                "args": {"AbsolutePath": str(synthetic_fixtures["clean_control"])},
+                "args": {"file_path": str(synthetic_fixtures["clean_control"])},
             }
         }
     )
@@ -239,7 +265,7 @@ def test_pre_tool_hook_blocks_adversarial_images_and_allows_clean(
         {
             "toolCall": {
                 "name": "view_file",
-                "args": {"AbsolutePath": str(synthetic_fixtures["v1_low_contrast"])},
+                "args": {"file_path": str(synthetic_fixtures["v1_low_contrast"])},
             }
         }
     )

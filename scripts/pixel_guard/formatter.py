@@ -27,11 +27,14 @@ def format_markdown_report(report: ScanReport) -> str:
         "",
     ]
 
+    is_multipage_doc = report.format == "TIFF" and report.frames_total > 1
+
     if not report.section_1_visible_text:
         lines.append("> [No verified human-visible safe text detected]")
     else:
         for vis in report.section_1_visible_text:
-            lines.append(f"> {vis.text}")
+            prefix = f"[Page {vis.frame_index + 1}] " if is_multipage_doc else ""
+            lines.append(f"> {prefix}{vis.text}")
 
     lines.extend([
         "",
@@ -56,7 +59,9 @@ def format_markdown_report(report: ScanReport) -> str:
                 for dec in item.decoded_payloads:
                     lines.append(f"- **Decoded Payload:** `{dec}`")
             lines.append(f"- **Detection Method:** {item.detection_method}")
-            if item.frame_index > 0:
+            if is_multipage_doc and item.bbox is not None:
+                lines.append(f"- **Page:** Page {item.frame_index + 1}")
+            elif item.frame_index > 0:
                 lines.append(f"- **Frame Index:** Frame {item.frame_index}")
             if item.bbox is not None:
                 bx, by, bw, bh = item.bbox

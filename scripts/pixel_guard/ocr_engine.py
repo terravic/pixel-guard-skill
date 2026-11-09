@@ -363,11 +363,13 @@ def run_multipass_ocr(
     passes: list[PassImage],
     native_dims: tuple[int, int],
     config: ScanConfig,
+    frame_dims: dict[int, tuple[int, int]] | None = None,
 ) -> list[DetectedRegion]:
-    """Execute air-gapped OCR concurrently across passes and deduplicate spatially."""
+    """Execute air-gapped OCR concurrently across passes and deduplicate spatially per page/frame."""
     if not passes:
         return []
 
+    dims_map = frame_dims or {}
     tesseract_bin = resolve_tesseract_binary(config)
     if config.ocr_backend == "easyocr" or tesseract_bin is None:
         per_pass_lists = _run_easyocr_fallback(passes, native_dims, config.ocr_min_confidence)
@@ -375,13 +377,24 @@ def run_multipass_ocr(
         max_workers = min(config.ocr_workers, len(passes))
         if max_workers <= 1:
             per_pass_lists = [
-                _ocr_single_pass(p, tesseract_bin, config.ocr_min_confidence, native_dims)
+                _ocr_single_pass(
+                    p,
+                    tesseract_bin,
+                    config.ocr_min_confidence,
+                    dims_map.get(p.frame_index, native_dims),
+                )
                 for p in passes
             ]
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
                 futures = [
-                    pool.submit(_ocr_single_pass, p, tesseract_bin, config.ocr_min_confidence, native_dims)
+                    pool.submit(
+                        _ocr_single_pass,
+                        p,
+                        tesseract_bin,
+                        config.ocr_min_confidence,
+                        dims_map.get(p.frame_index, native_dims),
+                    )
                     for p in passes
                 ]
                 per_pass_lists = [f.result() for f in futures]

@@ -1,4 +1,4 @@
-# --- Python ---
+# Python bytecode and build artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,66 +6,36 @@ __pycache__/
 .eggs/
 build/
 dist/
-.Python
-develop-eggs/
-downloads/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 wheels/
-.installed.cfg
 *.egg
+*.so
 
-# --- env ---
+# Virtual environments
 .venv/
 venv/
 env/
 ENV/
-.health-venv/
 .python-version
 
-# --- C extensions ---
-*.so
+# Test and coverage caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-# --- Jupyter / Colab ---
-.ipynb_checkpoints/
-*.ipynb_checkpoints
-
-# --- Node / A2UI tooling ---
-node_modules/
-npm-debug.log*
-yarn-error.log*
-
-# --- Secrets / Credentials ---
+# Environment and credentials
 .env
 .env.*
 !.env.example
-*-service-account*.json
-*credentials*.json
 *.pem
 *.key
 
-# --- Terraform ---
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-
-# --- Data ---
-*.csv
-*.parquet
-*.avro
-
-# --- Logs and scratch output ---
+# Temporary logs and scratch directories
 *.log
 scratch/
 tmp/
 
-
-# --- OS / editor ---
+# Editor and OS files
 .DS_Store
 Thumbs.db
 .idea/
@@ -73,45 +43,3 @@ Thumbs.db
 *.swp
 *.swo
 *~
-
-# --- Coding Agents ---
-CLAUDE.md
-.claude/
-.agents/skills/
-.agents/roles/
-.refs/
-.adk/
-
-# --- Local / Personal Notes ---
-TODO*.md
-*.local.md
-notes/
-BUILD-NOTES.md
-
-# --- Run ---
-/raw/*
-/findings/
-/gates/*
-/executive/
-!/raw/.gitkeep
-!/gates/.gitkeep
-/program-state/*
-!/program-state/project_parameters.json
-/.local/
-/governance/gates/
-*.sdf
-*.pdb
-*.pdbqt
-*.xpt
-*.h5ad
-*.bam
-*.vcf
-*.vcf.gz
-*.out
-*.log
-dashboards/*.html
-.cache/
-.coverage
-.coverage.*
-htmlcov/
-
