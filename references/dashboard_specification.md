@@ -12,7 +12,7 @@ Unless `--no-dashboard` is specified, `pixel-guard` generates a self-contained H
 | **Interface Prose & Controls** | `DM Sans` (with system sans-serif fallback) |
 | **Tabular & Quantitative Values** | `IBM Plex Mono` with `font-variant-numeric: tabular-nums` |
 | **Container Surfaces** | Single-level flat grid with solid surface tokens and `1px solid` structural borders (`6px` to `8px` radius) |
-| **Theme Controls** | Segmented text buttons (`Light`, `Dark`, `System`) inside `#theme-btn-light`, `#theme-btn-dark`, `#theme-btn-system` |
+| **Theme Controls** | Segmented SVG vector buttons (`Light`, `Dark`, `System`) inside `#theme-btn-light`, `#theme-btn-dark`, `#theme-btn-system` |
 
 ---
 

@@ -42,7 +42,7 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert 'id="os-file-dialog-label"' not in html
     assert "/api/scan-upload" in html
 
-    # 3. Theme selector text buttons and persistence attributes
+    # 3. Theme selector SVG icon buttons and persistence attributes
     for btn_id, mode in (
         ('id="theme-btn-light"', 'data-theme-mode="light"'),
         ('id="theme-btn-dark"', 'data-theme-mode="dark"'),
@@ -50,6 +50,8 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     ):
         assert btn_id in html
         assert mode in html
+    assert ".theme-btn svg" in html
+    assert 'viewBox="0 0 24 24"' in html
     assert "prefers-color-scheme: dark" in html
     assert "localStorage" in html
 

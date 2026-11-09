@@ -306,10 +306,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       border: none;
       border-right: 1px solid var(--border-token);
       color: var(--text-secondary);
-      font-family: var(--font-ui);
-      font-size: 12px;
-      font-weight: 500;
-      padding: 5px 10px;
+      width: 34px;
+      height: 30px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -323,7 +321,16 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     .theme-btn.active {
       background-color: var(--bg-surface);
       color: var(--text-primary);
-      font-weight: 600;
+    }
+
+    .theme-btn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .bento-workspace {
@@ -636,9 +643,31 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="nav-controls">
       <span class="status-pill" id="hdr-status" data-status="PASSED">PASSED</span>
       <div class="theme-selector" role="group" aria-label="Appearance Theme Selector">
-        <button type="button" id="theme-btn-light" class="theme-btn" title="Light Theme" aria-label="Light Theme" data-theme-mode="light" aria-pressed="false">Light</button>
-        <button type="button" id="theme-btn-dark" class="theme-btn" title="Dark Theme" aria-label="Dark Theme" data-theme-mode="dark" aria-pressed="false">Dark</button>
-        <button type="button" id="theme-btn-system" class="theme-btn active" title="System Theme" aria-label="System Theme" data-theme-mode="system" aria-pressed="true">System</button>
+        <button type="button" id="theme-btn-light" class="theme-btn" title="Light Theme" aria-label="Light Theme" data-theme-mode="light" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <line x1="12" y1="2" x2="12" y2="5"></line>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+            <line x1="4.93" y1="4.93" x2="7.05" y2="7.05"></line>
+            <line x1="16.95" y1="16.95" x2="19.07" y2="19.07"></line>
+            <line x1="2" y1="12" x2="5" y2="12"></line>
+            <line x1="19" y1="12" x2="22" y2="12"></line>
+            <line x1="4.93" y1="19.07" x2="7.05" y2="16.95"></line>
+            <line x1="16.95" y1="7.05" x2="19.07" y2="4.93"></line>
+          </svg>
+        </button>
+        <button type="button" id="theme-btn-dark" class="theme-btn" title="Dark Theme" aria-label="Dark Theme" data-theme-mode="dark" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button type="button" id="theme-btn-system" class="theme-btn active" title="System Theme" aria-label="System Theme" data-theme-mode="system" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        </button>
       </div>
     </div>
   </header>
