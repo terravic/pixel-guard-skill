@@ -87,6 +87,9 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert 'id="page-prev-btn"' in html
     assert 'id="page-indicator-label"' in html
     assert 'id="page-next-btn"' in html
+    assert 'id="pane-processing-status"' in html
+    assert "analysis-pane" in html
+    assert "enterPendingScanState" in html
     assert "data:image/png;base64," in html
     assert '"image_path": "tests/images/v3_micro_text.png"' in html
 

@@ -244,9 +244,52 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       border-color: var(--viz-amber);
     }
 
-    .status-pill[data-status="CRITICAL INJECTION DETECTED"] {
+    .status-pill[data-status="CRITICAL INJECTION DETECTED"],
+    .status-pill[data-status="BLOCKED"] {
       color: var(--viz-rose);
       border-color: var(--viz-rose);
+    }
+
+    .status-pill[data-status="SCANNING"] {
+      color: var(--viz-teal);
+      border-color: var(--viz-teal);
+    }
+
+    .bento-workspace.is-scanning .analysis-pane,
+    .bento-workspace.is-blocked .analysis-pane {
+      display: none;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 4px;
+      background-color: var(--border-token);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-indeterminate {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 38%;
+      background-color: var(--viz-teal);
+      border-radius: 2px;
+      animation: pg-slide 1.15s ease-in-out infinite;
+    }
+
+    @keyframes pg-slide {
+      0% { left: -38%; }
+      100% { left: 100%; }
+    }
+
+    .viewport-status-msg {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 24px;
+      text-align: center;
     }
 
     .theme-selector {
@@ -600,8 +643,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </header>
 
-  <main class="bento-workspace">
-    <section class="pane span-12">
+  <main class="bento-workspace" id="bento-workspace">
+    <section class="pane span-12 analysis-pane" id="pane-scan-summary">
       <div class="pane-header">
         <h2 class="pane-title">Scan Summary</h2>
         <span class="pane-meta" id="meta-filepath">--</span>
@@ -635,7 +678,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <section class="pane span-8">
+    <section class="pane span-8" id="pane-inspected-image">
       <div class="pane-header">
         <h2 class="pane-title">Inspected Image</h2>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -656,11 +699,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           <img id="inspected-image-el" class="inspected-img" alt="Inspected asset" />
           <svg id="bbox-overlay-svg" class="bbox-overlay-svg" preserveAspectRatio="none"></svg>
         </div>
+        <div class="viewport-status-msg" id="image-loading-notice" style="display:none;"></div>
         <div class="metadata-notice-pill" id="metadata-only-pill" style="display:none;">
           Non-pixel payload detected in file metadata (see Section 2)
         </div>
       </div>
-      <div class="legend-bar">
+      <div class="legend-bar" id="image-legend-bar">
         <span class="legend-item"><span class="legend-swatch" style="background:#059669;"></span>Section 1: Human-Visible Safe Text</span>
         <span class="legend-item"><span class="legend-swatch" style="background:#E11D48;"></span>Section 2: Critical Hidden / Injection</span>
         <span class="legend-item"><span class="legend-swatch" style="background:#D97706;"></span>Section 2: Camouflage / Anomaly Warning</span>
@@ -668,7 +712,18 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <section class="pane span-4">
+    <section class="pane span-4" id="pane-processing-status" style="display:none;">
+      <div class="pane-header">
+        <h2 class="pane-title" id="proc-pane-title">Processing Image</h2>
+        <span class="pane-meta" id="proc-pane-badge">Running Skill</span>
+      </div>
+      <div class="progress-track" id="proc-progress-track">
+        <div class="progress-bar-indeterminate"></div>
+      </div>
+      <div class="safe-copy-box" id="proc-detail-box" style="min-height:90px;"></div>
+    </section>
+
+    <section class="pane span-4 analysis-pane" id="pane-channels">
       <div class="pane-header">
         <h2 class="pane-title">Inspection Channels</h2>
         <span class="pane-meta">6 Live Pipeline Stages</span>
@@ -676,7 +731,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="channel-list" id="channel-breakdown-list"></div>
     </section>
 
-    <section class="pane span-5">
+    <section class="pane span-5 analysis-pane" id="pane-section-1">
       <div class="pane-header">
         <h2 class="pane-title">Section 1: Human-Visible Text</h2>
         <button type="button" class="action-btn" id="copy-sec1-btn">Copy Safe Text</button>
@@ -698,7 +753,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <section class="pane span-7">
+    <section class="pane span-7 analysis-pane" id="pane-section-2">
       <div class="pane-header">
         <h2 class="pane-title">Section 2: Quarantined &amp; Suspicious Findings</h2>
         <span class="pane-meta" id="sec2-summary-meta">0 items isolated</span>
@@ -1163,6 +1218,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       }
 
       function renderVisualizations() {
+        if (!state.report) return;
         renderSummaryAndTables();
         renderInspectedImageAndBoxes();
         renderChannelBreakdown();
@@ -1174,10 +1230,152 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const btnRev = document.getElementById("view-btn-reveal");
         if (btnOrig) btnOrig.classList.toggle("active", mode === "original");
         if (btnRev) btnRev.classList.toggle("active", mode === "reveal");
-        renderInspectedImageAndBoxes();
+        if (state.report) renderInspectedImageAndBoxes();
+      }
+
+      function setImageToolbarDisabled(isDisabled) {
+        ["page-prev-btn", "page-next-btn", "view-btn-original", "view-btn-reveal", "toggle-boxes-btn"].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (el) el.disabled = isDisabled;
+        });
+      }
+
+      function enterPendingScanState(fileName, isBrowserNative) {
+        state.report = null;
+        state.activeFrameIndex = 0;
+        state.selectedQuarantineId = null;
+
+        const workspace = document.getElementById("bento-workspace");
+        if (workspace) {
+          workspace.classList.remove("is-blocked");
+          workspace.classList.add("is-scanning");
+        }
+
+        // Purge all DOM text/tables from the previous image analysis immediately
+        const sec1Box = document.getElementById("sec1-text-box");
+        const sec1Body = document.getElementById("sec1-tbody");
+        const sec2Body = document.getElementById("sec2-tbody");
+        const chanList = document.getElementById("channel-breakdown-list");
+        if (sec1Box) sec1Box.textContent = "";
+        if (sec1Body) sec1Body.innerHTML = "";
+        if (sec2Body) sec2Body.innerHTML = "";
+        if (chanList) chanList.innerHTML = "";
+        ["meta-filepath", "val-filename", "val-format", "val-dims", "val-frames", "val-latency", "val-total-sub"].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = "--";
+        });
+        ["val-visible", "val-quarantined"].forEach(function (id) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = "0";
+        });
+
+        // Update header pill and clear previous image overlays
+        const pill = document.getElementById("hdr-status");
+        if (pill) {
+          pill.textContent = "SCANNING...";
+          pill.setAttribute("data-status", "SCANNING");
+        }
+
+        const svgEl = document.getElementById("bbox-overlay-svg");
+        const metaPill = document.getElementById("metadata-only-pill");
+        const legendBar = document.getElementById("image-legend-bar");
+        const pageLabelEl = document.getElementById("page-indicator-label");
+        const pageNavGroup = document.getElementById("page-nav-group");
+        const imgEl = document.getElementById("inspected-image-el");
+        const loadingNotice = document.getElementById("image-loading-notice");
+
+        if (svgEl) svgEl.innerHTML = "";
+        if (metaPill) metaPill.style.display = "none";
+        if (legendBar) legendBar.style.display = "none";
+        if (pageLabelEl) pageLabelEl.textContent = "Scanning...";
+        if (pageNavGroup) pageNavGroup.classList.remove("has-multipage");
+        setImageToolbarDisabled(true);
+
+        if (!isBrowserNative) {
+          if (imgEl) {
+            imgEl.removeAttribute("src");
+            imgEl.style.display = "none";
+          }
+          if (loadingNotice) {
+            loadingNotice.textContent = "Decoding and scanning " + fileName + "...";
+            loadingNotice.style.display = "block";
+          }
+        } else if (loadingNotice) {
+          loadingNotice.style.display = "none";
+        }
+
+        // Show processing card alongside the loaded image
+        const procPane = document.getElementById("pane-processing-status");
+        const procTitle = document.getElementById("proc-pane-title");
+        const procBadge = document.getElementById("proc-pane-badge");
+        const procTrack = document.getElementById("proc-progress-track");
+        const procBox = document.getElementById("proc-detail-box");
+        if (procPane) procPane.style.display = "flex";
+        if (procTitle) procTitle.textContent = "Processing Image";
+        if (procBadge) procBadge.textContent = "Running Skill";
+        if (procTrack) procTrack.style.display = "block";
+        if (procBox) {
+          procBox.textContent =
+            "Target: " + fileName + "\n" +
+            "Status: Running 6-stage Pixel Guard sanitization pipeline (stream validation, metadata check, multi-pass reveal, local OCR, WCAG/CIEDE2000 color math, and threat heuristics)...";
+        }
+      }
+
+      function exitPendingScanState() {
+        const workspace = document.getElementById("bento-workspace");
+        if (workspace) {
+          workspace.classList.remove("is-scanning");
+          workspace.classList.remove("is-blocked");
+        }
+        const procPane = document.getElementById("pane-processing-status");
+        const loadingNotice = document.getElementById("image-loading-notice");
+        const legendBar = document.getElementById("image-legend-bar");
+        if (procPane) procPane.style.display = "none";
+        if (loadingNotice) loadingNotice.style.display = "none";
+        if (legendBar) legendBar.style.display = "flex";
+        setImageToolbarDisabled(false);
+      }
+
+      function enterBlockedOrErrorState(fileName, badgeLabel, messageText) {
+        const workspace = document.getElementById("bento-workspace");
+        if (workspace) {
+          workspace.classList.remove("is-scanning");
+          workspace.classList.add("is-blocked");
+        }
+        const pill = document.getElementById("hdr-status");
+        if (pill) {
+          pill.textContent = "BLOCKED";
+          pill.setAttribute("data-status", "BLOCKED");
+        }
+        const imgEl = document.getElementById("inspected-image-el");
+        const loadingNotice = document.getElementById("image-loading-notice");
+        const pageLabelEl = document.getElementById("page-indicator-label");
+        if (imgEl) {
+          imgEl.removeAttribute("src");
+          imgEl.style.display = "none";
+        }
+        if (loadingNotice) {
+          loadingNotice.textContent = fileName + " rejected before pixel decoding.";
+          loadingNotice.style.display = "block";
+        }
+        if (pageLabelEl) pageLabelEl.textContent = "Blocked";
+
+        const procPane = document.getElementById("pane-processing-status");
+        const procTitle = document.getElementById("proc-pane-title");
+        const procBadge = document.getElementById("proc-pane-badge");
+        const procTrack = document.getElementById("proc-progress-track");
+        const procBox = document.getElementById("proc-detail-box");
+        if (procPane) procPane.style.display = "flex";
+        if (procTitle) procTitle.textContent = "Validation Blocked";
+        if (procBadge) procBadge.textContent = badgeLabel;
+        if (procTrack) procTrack.style.display = "none";
+        if (procBox) procBox.textContent = messageText;
       }
 
       function applyNewScanReport(newReport) {
+        state.uploadSeq = (state.uploadSeq || 0) + 1;
+        state.isScanning = false;
+        exitPendingScanState();
         state.report = newReport;
         state.activeFrameIndex = 0;
         state.selectedQuarantineId = null;
@@ -1195,29 +1393,32 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         );
       }
 
-      function handleOfflineError() {
-        setFeedback(
-          "Local Pixel Guard server unreachable at " + API_BASE +
-          ". Run: python3 scripts/pixel_guard_cli.py tests/images/clean_control.png",
-          "error"
-        );
+      function handleOfflineError(fileName) {
+        const msg = "Local Pixel Guard server unreachable at " + API_BASE +
+          ". Run: python3 scripts/pixel_guard_cli.py tests/images/clean_control.png";
+        enterBlockedOrErrorState(fileName || "Image", "Server Offline", msg);
+        setFeedback(msg, "error");
       }
 
       function uploadAndExecuteSkill(fileObj) {
         if (!fileObj) return;
-        setScanningBusy(true);
-        setFeedback("Executing Pixel Guard pipeline on " + fileObj.name + "...", "neutral");
+        const seqId = (state.uploadSeq || 0) + 1;
+        state.uploadSeq = seqId;
+        state.isScanning = true;
 
-        // Immediately show browser-renderable formats while the Python pipeline executes
-        const imgEl = document.getElementById("inspected-image-el");
-        const svgEl = document.getElementById("bbox-overlay-svg");
-        if (svgEl) svgEl.innerHTML = "";
         const lowerName = (fileObj.name || "").toLowerCase();
         const isBrowserNative = /\.(png|jpe?g|webp|gif|bmp)$/.test(lowerName);
+
+        setScanningBusy(true);
+        enterPendingScanState(fileObj.name, isBrowserNative);
+        setFeedback("Executing Pixel Guard pipeline on " + fileObj.name + "...", "neutral");
+
+        // Immediately show the newly selected image (without any old analysis panes) while Python runs
+        const imgEl = document.getElementById("inspected-image-el");
         if (isBrowserNative && imgEl && typeof FileReader !== "undefined") {
           const reader = new FileReader();
           reader.onload = function (ev) {
-            if (ev.target && typeof ev.target.result === "string") {
+            if (state.isScanning && state.uploadSeq === seqId && ev.target && typeof ev.target.result === "string") {
               imgEl.src = ev.target.result;
               imgEl.style.display = "block";
             }
@@ -1239,21 +1440,27 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             });
           })
           .then(function (res) {
+            if (state.uploadSeq !== seqId) return;
+            state.isScanning = false;
             setScanningBusy(false);
             if (!res.ok || res.body.error) {
-              renderInspectedImageAndBoxes();
-              setFeedback(
-                "Blocked " + fileObj.name + " [" + (res.body.error_code || "SCAN_ERROR") + "]: " + (res.body.message || "Validation failed"),
-                "error"
+              const errCode = res.body.error_code || "SCAN_ERROR";
+              const errMsg = res.body.message || "Validation failed";
+              enterBlockedOrErrorState(
+                fileObj.name,
+                errCode,
+                "Target: " + fileObj.name + "\nError Code: " + errCode + "\nReason: " + errMsg
               );
+              setFeedback("Blocked " + fileObj.name + " [" + errCode + "]: " + errMsg, "error");
               return;
             }
             applyNewScanReport(res.body);
           })
           .catch(function () {
+            if (state.uploadSeq !== seqId) return;
+            state.isScanning = false;
             setScanningBusy(false);
-            renderInspectedImageAndBoxes();
-            handleOfflineError();
+            handleOfflineError(fileObj.name);
           });
       }
 

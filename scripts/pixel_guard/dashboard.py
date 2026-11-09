@@ -722,7 +722,7 @@ def ensure_studio_daemon(
         logger.debug("Could not spawn background Studio daemon: %s", exc)
         return None
 
-    deadline = time.monotonic() + 3.0
+    deadline = time.monotonic() + 8.0
     while time.monotonic() < deadline:
         if _probe_studio_health(api_url, timeout=0.25):
             return api_url
