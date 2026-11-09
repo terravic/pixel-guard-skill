@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/pixel-guard/schemas/report_schema.json",
+  "title": "PixelGuardScanReport",
+  "description": "Structured pre-flight image sanitization and hidden prompt injection analysis report.",
+  "type": "object",
+  "required": [
+    "skill_name",
+    "version",
+    "image_filename",
+    "image_path",
+    "sha256",
+    "format",
+    "dimensions",
+    "frames_analyzed",
+    "scan_status",
+    "analyzed_channels",
+    "total_regions_found",
+    "visible_count",
+    "quarantined_count",
+    "elapsed_ms",
+    "system_theme",
+    "section_1_visible_text",
+    "section_2_quarantined_items",
+    "metadata_entries"
+  ],
+  "properties": {
+    "skill_name": {
+      "type": "string",
+      "const": "pixel-guard"
+    },
+    "version": {
+      "type": "string"
+    },
+    "image_filename": {
+      "type": "string"
+    },
+    "image_path": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "format": {
+      "type": "string"
+    },
+    "dimensions": {
+      "type": "object",
+      "required": ["width", "height", "channels"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "channels": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "frames_analyzed": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "frames_total": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scan_status": {
+      "type": "string",
+      "enum": ["PASSED", "WARNING", "CRITICAL INJECTION DETECTED"]
+    },
+    "analyzed_channels": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "total_regions_found": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "visible_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "quarantined_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "elapsed_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "system_theme": {
+      "type": "string",
+      "enum": ["light", "dark"]
+    },
+    "section_1_visible_text": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "bbox",
+          "frame_index",
+          "origin_pass",
+          "confidence",
+          "contrast_ratio",
+          "delta_e",
+          "mean_alpha",
+          "foreground_hex",
+          "background_hex"
+        ],
+        "properties": {
+          "text": { "type": "string" },
+          "bbox": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "frame_index": { "type": "integer", "minimum": 0 },
+          "origin_pass": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "contrast_ratio": { "type": "number", "minimum": 1 },
+          "delta_e": { "type": "number", "minimum": 0 },
+          "mean_alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+          "foreground_hex": { "type": "string" },
+          "background_hex": { "type": "string" },
+          "foreground_lab": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "background_lab": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "section_2_quarantined_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "risk_level",
+          "category_label",
+          "text",
+          "detection_method",
+          "security_flags"
+        ],
+        "properties": {
+          "item_id": { "type": "integer", "minimum": 1 },
+          "risk_level": {
+            "type": "string",
+            "enum": ["MEDIUM", "HIGH", "CRITICAL"]
+          },
+          "category_label": { "type": "string" },
+          "text": { "type": "string" },
+          "decoded_payloads": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "detection_method": { "type": "string" },
+          "origin_pass": { "type": "string" },
+          "frame_index": { "type": "integer", "minimum": 0 },
+          "bbox": {
+            "type": ["array", "null"],
+            "items": { "type": "integer" },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "font_height_px": { "type": ["integer", "null"] },
+          "contrast_ratio": { "type": ["number", "null"] },
+          "delta_e": { "type": ["number", "null"] },
+          "mean_alpha": { "type": ["number", "null"] },
+          "shannon_entropy": { "type": ["number", "null"] },
+          "foreground_hex": { "type": ["string", "null"] },
+          "background_hex": { "type": ["string", "null"] },
+          "foreground_lab": {
+            "type": ["array", "null"],
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "background_lab": {
+            "type": ["array", "null"],
+            "items": { "type": "number" },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "security_flags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata_entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "content", "suspicious"],
+        "properties": {
+          "source": { "type": "string" },
+          "content": { "type": "string" },
+          "suspicious": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

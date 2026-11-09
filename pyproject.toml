@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixel-guard"
+version = "1.0.0"
+description = "Deterministic pre-flight image sanitization and hidden prompt injection defense skill for AI agent harnesses."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "Pillow>=10.2.0",
+    "opencv-python-headless>=4.9.0",
+    "numpy>=1.26.0",
+    "pytesseract>=0.3.10",
+    "scikit-image>=0.22.0",
+    "piexif>=1.1.3",
+    "mcp>=1.1.0",
+    "jsonschema>=4.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+pixel-guard = "pixel_guard.cli_entry:main"
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+
+[tool.setuptools.packages.find]
+where = ["scripts"]
+include = ["pixel_guard*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = "-ra -q"

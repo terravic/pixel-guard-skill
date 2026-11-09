@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "pixel-guard": {
+      "command": "python3",
+      "args": ["scripts/mcp_server.py"],
+      "env": {
+        "PIXEL_GUARD_WCAG_MIN": "3.0",
+        "PIXEL_GUARD_DELTA_E_MIN": "15.0",
+        "PIXEL_GUARD_ALPHA_MIN": "0.30",
+        "PIXEL_GUARD_MIN_HEIGHT_PX": "8"
+      }
+    }
+  }
+}

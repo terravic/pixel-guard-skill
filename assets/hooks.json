@@ -1,0 +1,17 @@
+{
+  "pixel-guard-image-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "view_file|read_file|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/pre_tool_hook.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
