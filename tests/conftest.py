@@ -21,7 +21,7 @@ from tests.generate_test_images import generate_all_test_images  # noqa: E402
 
 @pytest.fixture(scope="session")
 def project_root() -> Path:
-    """Return the absolute path to the pixel-guard repository root."""
+    """Return the resolved Path to the pixel-guard repository root."""
     return _ROOT
 
 

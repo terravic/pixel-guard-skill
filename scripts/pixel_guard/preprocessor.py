@@ -401,7 +401,7 @@ def generate_vision_passes(
             vis_stroke_mask = None
             vis_edge_mask = None
 
-        # Pass B: Extreme Low-Contrast Amplification (Local Peak-Normalized Median Deviation)
+        # Pass B: Local Median & Micro-Contrast Amplification (Local Peak-Normalized Deviation)
         if work_dev is not None and int(work_dev.max()) >= 2:
             subtle_dev = np.where(vis_stroke_mask, 0, work_dev) if vis_stroke_mask is not None else work_dev
             cleaned_dev, clean_bin = _despeckle_deviation(subtle_dev, min_val=3, min_area=6)
@@ -418,7 +418,7 @@ def generate_vision_passes(
                         clean_bin=active_bin,
                         work_scale=work_scale,
                         pass_id="clahe_contrast",
-                        display_label="Pass B (Extreme CLAHE & Micro-Contrast Enhancement)",
+                        display_label="Pass B (Local Median & Micro-Contrast Enhancement)",
                         channel_group="CLAHE",
                         frame_index=f_idx,
                         psm_modes=(6, 11),

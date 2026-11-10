@@ -55,7 +55,7 @@ def sanitize_metadata_text(raw: Any, tag_name: str = "") -> str:
         return ""
 
     if isinstance(raw, (tuple, list)):
-        # Windows XP* tags are sometimes exposed as tuples of byte integers
+        # EXIF XP* UTF-16LE tags are sometimes exposed as tuples of byte integers
         if all(isinstance(x, int) and 0 <= x <= 255 for x in raw):
             raw = bytes(raw)
         else:

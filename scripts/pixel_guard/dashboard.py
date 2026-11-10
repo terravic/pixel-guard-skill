@@ -360,7 +360,7 @@ def write_dashboard_file(
     studio_api_url: str = f"http://127.0.0.1:{DEFAULT_STUDIO_PORT}",
     source_image_path: str | Path | None = None,
 ) -> Path:
-    """Write standalone dashboard.html (defaulting to <skill_root>/dashboard.html) and return its Path."""
+    """Write standalone dashboard.html (defaulting to root dashboard.html) and return its Path."""
     out = Path(output_path) if output_path is not None else default_dashboard_path()
     html = render_dashboard_html(
         report,
@@ -591,10 +591,16 @@ class DashboardSSEServer:
                         staged_path.write_bytes(raw_body)
                         try:
                             report = server_ref._run_pipeline_on_path(staged_path)
+                            repo_sample = get_project_root() / "tests" / "images" / safe_name
+                            rel_display_path = (
+                                f"tests/images/{safe_name}"
+                                if repo_sample.is_file()
+                                else safe_name
+                            )
                             clean_report = replace(
                                 report,
                                 image_filename=safe_name,
-                                image_path=f"[Loaded via Dashboard] {safe_name}",
+                                image_path=rel_display_path,
                             )
                             updated_dict = server_ref.update_report(
                                 clean_report,

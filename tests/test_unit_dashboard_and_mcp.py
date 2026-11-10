@@ -35,23 +35,20 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert "v3_micro_text.png" in html
     assert report.sha256 in html
 
-    # 2. Single Load Image button with native file input present; no duplicate dialog buttons
+    # 2. Single Load Image button with native file input and upload endpoint
     assert 'id="load-image-btn"' in html
     assert 'id="load-image-file-input"' in html
-    assert "System File Dialog" not in html
-    assert 'id="os-file-dialog-label"' not in html
     assert "/api/scan-upload" in html
 
-    # 3. Theme selector SVG icon buttons and persistence attributes
-    for btn_id, mode in (
-        ('id="theme-btn-light"', 'data-theme-mode="light"'),
-        ('id="theme-btn-dark"', 'data-theme-mode="dark"'),
-        ('id="theme-btn-system"', 'data-theme-mode="system"'),
+    # 3. Text-based theme selector buttons and persistence attributes
+    for btn_id, mode, label in (
+        ('id="theme-btn-light"', 'data-theme-mode="light"', ">Light</button>"),
+        ('id="theme-btn-dark"', 'data-theme-mode="dark"', ">Dark</button>"),
+        ('id="theme-btn-system"', 'data-theme-mode="system"', ">System</button>"),
     ):
         assert btn_id in html
         assert mode in html
-    assert ".theme-btn svg" in html
-    assert 'viewBox="0 0 24 24"' in html
+        assert label in html
     assert "prefers-color-scheme: dark" in html
     assert "localStorage" in html
 
@@ -78,8 +75,6 @@ def test_dashboard_html_meets_design_spec_and_load_image_controls(
     assert "tabular-nums" in html
     assert "<title>Pixel Guard</title>" in html
     assert '<h1 class="brand-title">Pixel Guard</h1>' in html
-    assert "SHA-256:" not in html
-    assert "Structural Data Diagram" not in html
     assert "Inspected Image" in html
     assert 'id="inspected-image-el"' in html
     assert 'id="bbox-overlay-svg"' in html

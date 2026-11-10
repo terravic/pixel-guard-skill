@@ -12,7 +12,7 @@ Unless `--no-dashboard` is specified, `pixel-guard` generates a self-contained H
 | **Interface Prose & Controls** | `DM Sans` (with system sans-serif fallback) |
 | **Tabular & Quantitative Values** | `IBM Plex Mono` with `font-variant-numeric: tabular-nums` |
 | **Container Surfaces** | Single-level flat grid with solid surface tokens and `1px solid` structural borders (`6px` to `8px` radius) |
-| **Theme Controls** | Segmented SVG vector buttons (`Light`, `Dark`, `System`) inside `#theme-btn-light`, `#theme-btn-dark`, `#theme-btn-system` |
+| **Theme Controls** | Segmented text buttons (`Light`, `Dark`, `System`) inside `#theme-btn-light`, `#theme-btn-dark`, `#theme-btn-system` |
 
 ---
 
@@ -34,11 +34,11 @@ The navigation bar presents a segmented three-mode theme control persisting sele
 
 | Color Role | Hex Code | Dashboard Usage |
 | :--- | :--- | :--- |
-| **Vibrant Teal** | `#0D9488` | Primary `Load Image` action button and active toggle states |
-| **Energetic Amber** | `#D97706` | Intermediate warning thresholds, low-contrast / micro-text anomalies |
-| **Vivid Indigo** | `#4F46E5` | Medium-severity anomaly badges |
-| **Functional Emerald** | `#059669` | Verified Section 1 human-visible bounding boxes and `PASSED` states |
-| **Deep Rose** | `#E11D48` | Critical prompt injections, exfiltration signatures, and quarantined boxes |
+| **Teal** | `#0D9488` | Primary `Load Image` action button and active toggle states |
+| **Amber** | `#D97706` | Intermediate warning thresholds, low-contrast / micro-text anomalies |
+| **Indigo** | `#4F46E5` | Medium-severity anomaly badges |
+| **Emerald** | `#059669` | Verified Section 1 human-visible bounding boxes and `PASSED` states |
+| **Rose** | `#E11D48` | Critical prompt injections, exfiltration signatures, and quarantined boxes |
 
 ---
 
@@ -46,7 +46,7 @@ The navigation bar presents a segmented three-mode theme control persisting sele
 
 1. **Header & Load Image Control:** Displays the `Pixel Guard` title, a single **Load Image** button (`#load-image-btn` wrapping `#load-image-file-input`) that opens the native file selection dialog, live execution status feedback (`#scan-feedback-banner`), scan status pill, and `Light / Dark / System` theme selector.
 2. **Scan Summary Strip:** Displays relative file path, file name, format, pixel dimensions, inspected frame count, Section 1 visible count, Section 2 quarantined count, and scan time in milliseconds.
-3. **Inspected Image & Bounding Box Overlay:** Renders the loaded image (`#inspected-image-el`) with aligned per-page SVG bounding boxes (`#bbox-overlay-svg`: `#059669` Emerald for Section 1 visible lines, `#E11D48` Deep Rose / `#D97706` Amber with `#1`, `#2` badges for Section 2 quarantined regions), page navigation arrows (`#page-prev-btn`, `#page-indicator-label`, `#page-next-btn` for stepping through multi-page TIFFs and multi-frame images), segmented toggles for **Original Image** vs **Enhanced Reveal**, and **Boxes: On / Off**.
+3. **Inspected Image & Bounding Box Overlay:** Renders the loaded image (`#inspected-image-el`) with aligned per-page bounding boxes (`#bbox-overlay-svg`: `#059669` Emerald for Section 1 visible lines, `#E11D48` Rose / `#D97706` Amber with `#1`, `#2` badges for Section 2 quarantined regions), page navigation controls (`#page-prev-btn`, `#page-indicator-label`, `#page-next-btn` for stepping through multi-page TIFFs and multi-frame images), segmented toggles for **Original Image** vs **Enhanced Reveal**, and **Boxes: On / Off**.
 4. **Inspection Channels Breakdown:** Reports safe/flagged counts across all 6 deterministic inspection channels.
 5. **Dual-Section Tables:** Side-by-side Section 1 safe copy block and Section 2 quarantine table (`IBM Plex Mono`, `tabular-nums`, click-linked to bounding boxes).
 

@@ -19,8 +19,6 @@ _POLYGLOT_MARKERS: tuple[bytes, ...] = (
     b"<html",
     b"<script",
     b"<?php",
-    b"#!/bin/",
-    b"#!/usr/bin/",
     b"\x7felf",
 )
 
@@ -67,7 +65,12 @@ def _check_polyglot_bytes(head: bytes, tail: bytes, detected_format: str | None)
     """Reject files embedding executable headers or active HTML/script payloads."""
     if head.startswith(b"MZ") and detected_format != "BMP":
         raise ValidationError(
-            "Rejected Windows PE executable header masquerading as an image file.",
+            "Rejected PE executable header masquerading as an image file.",
+            error_code="POLYGLOT_OR_INVALID_SIGNATURE",
+        )
+    if head.lstrip().startswith(b"#!") and detected_format is None:
+        raise ValidationError(
+            "Rejected script shebang header masquerading as an image file.",
             error_code="POLYGLOT_OR_INVALID_SIGNATURE",
         )
     head_lower = head[:1024].lower()

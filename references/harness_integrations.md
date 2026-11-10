@@ -6,10 +6,10 @@
 
 ## 1. Skill Plug-In Discovery (`SKILL.md`)
 
-Place or symlink the `pixel-guard` directory inside your harness skill directory using relative workspace or user configuration paths:
+Place or symlink the `pixel-guard` directory inside your workspace skill directory using relative paths:
 
-- Workspace skill directory: `.agents/skills/pixel-guard/` or `skills/pixel-guard/`
-- User skill directory: `~/.config/agents/skills/pixel-guard/` (or the skill search directory configured by your agent runtime)
+- `.agents/skills/pixel-guard/`
+- `skills/pixel-guard/`
 
 When a user provides a plain-text path to an image file, the agent reads `SKILL.md`, invokes `scripts/pixel_guard_cli.py`, forwards only Section 1 verified text into downstream context, and reports any Section 2 quarantined findings.
 

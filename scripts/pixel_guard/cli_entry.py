@@ -56,8 +56,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="HTML_PATH",
         help=(
-            "Optional custom output path for dashboard.html (by default, <skill_root>/dashboard.html "
-            "is automatically written and updated on every scan)."
+            "Optional custom output path for dashboard.html (by default, dashboard.html "
+            "at the project root is written and updated on every scan)."
         ),
     )
     parser.add_argument(

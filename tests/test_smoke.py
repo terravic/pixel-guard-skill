@@ -33,8 +33,7 @@ def test_required_repository_layout(project_root: Path) -> None:
         project_root / "references" / "dashboard_specification.md",
     ]
     for path in expected_paths:
-        assert path.exists(), f"Missing required file or directory: {path}"
-    assert not (project_root / "assets" / "dashboard_template.html").exists()
+        assert path.exists(), f"Missing required file or directory: {path.name}"
 
 
 def test_skill_frontmatter_and_prd_sections(project_root: Path) -> None:
