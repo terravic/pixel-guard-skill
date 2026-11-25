@@ -7,6 +7,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="__PIXEL_GUARD_CSP_META__" />
   <title>Pixel Guard</title>
   <style>
     :root,
@@ -14,8 +15,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       --bg-viewport: #FAFAF9;
       --bg-surface: #FFFFFF;
       --border-token: #E7E5E4;
+      --control-border-aa: #787774;
       --text-primary: #1C1917;
-      --text-secondary: #787774;
+      --text-secondary: #57534E;
+      --text-muted-token: #787774;
       --checker-a: #F3F2F0;
       --checker-b: #E7E5E4;
       --viz-teal: #0D9488;
@@ -23,6 +26,13 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       --viz-indigo: #4F46E5;
       --viz-emerald: #059669;
       --viz-rose: #E11D48;
+      --btn-teal-bg-aa: #0F766E;
+      --text-teal-aa: #0F766E;
+      --text-emerald-aa: #047857;
+      --text-amber-aa: #B45309;
+      --text-rose-aa: #BE123C;
+      --text-indigo-aa: #4338CA;
+      --focus-ring-aa: #0F766E;
       --font-ui: "DM Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
       --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -32,10 +42,19 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       --bg-viewport: #0D0E11;
       --bg-surface: #16171D;
       --border-token: #292A30;
+      --control-border-aa: #757785;
       --text-primary: #ECE8E2;
       --text-secondary: #9A9895;
+      --text-muted-token: #9A9895;
       --checker-a: #121318;
       --checker-b: #1D1F27;
+      --btn-teal-bg-aa: #0F766E;
+      --text-teal-aa: #2DD4BF;
+      --text-emerald-aa: #34D399;
+      --text-amber-aa: #FBBF24;
+      --text-rose-aa: #FB7185;
+      --text-indigo-aa: #A5B4FC;
+      --focus-ring-aa: #2DD4BF;
     }
 
     * {
@@ -51,6 +70,35 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-size: 14px;
       line-height: 1.5;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background-color: var(--btn-teal-bg-aa);
+      color: #FFFFFF;
+      padding: 8px 14px;
+      font-weight: 600;
+      z-index: 1000;
+      text-decoration: none;
+      border-radius: 0 0 6px 0;
+    }
+
+    .skip-link:focus {
+      left: 0;
+      outline: 2px solid var(--text-primary);
+      outline-offset: 2px;
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    tr[tabindex="0"]:focus-visible,
+    g[tabindex="0"]:focus-visible {
+      outline: 2px solid var(--focus-ring-aa);
+      outline-offset: 2px;
     }
 
     .topbar {
@@ -97,16 +145,21 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-weight: 600;
       padding: 7px 16px;
       border-radius: 6px;
-      border: 1px solid var(--viz-teal);
-      background-color: var(--viz-teal);
+      border: 1px solid var(--btn-teal-bg-aa);
+      background-color: var(--btn-teal-bg-aa);
       color: #FFFFFF;
       cursor: pointer;
       overflow: hidden;
       user-select: none;
     }
 
+    .load-image-btn-wrapper:focus-within {
+      outline: 2px solid var(--focus-ring-aa);
+      outline-offset: 2px;
+    }
+
     .load-image-btn-wrapper.is-busy {
-      opacity: 0.65;
+      opacity: 0.72;
       pointer-events: none;
     }
 
@@ -129,7 +182,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-weight: 500;
       padding: 5px 12px;
       border-radius: 6px;
-      border: 1px solid var(--border-token);
+      border: 1px solid var(--control-border-aa);
       background-color: var(--bg-viewport);
       color: var(--text-primary);
       cursor: pointer;
@@ -138,29 +191,29 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     .action-btn.active-toggle {
-      background-color: var(--viz-teal);
-      border-color: var(--viz-teal);
+      background-color: var(--btn-teal-bg-aa);
+      border-color: var(--btn-teal-bg-aa);
       color: #FFFFFF;
     }
 
     .segmented-group {
       display: inline-flex;
       align-items: center;
-      border: 1px solid var(--border-token);
+      border: 1px solid var(--control-border-aa);
       border-radius: 6px;
       background-color: var(--bg-viewport);
       overflow: hidden;
     }
 
     .segmented-group.has-multipage {
-      border-color: var(--viz-teal);
+      border-color: var(--text-teal-aa);
     }
 
     .seg-btn {
       appearance: none;
       background: transparent;
       border: none;
-      border-right: 1px solid var(--border-token);
+      border-right: 1px solid var(--control-border-aa);
       color: var(--text-secondary);
       font-family: var(--font-ui);
       font-size: 12px;
@@ -177,10 +230,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       background-color: var(--bg-surface);
       color: var(--text-primary);
       font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
 
     .seg-btn:disabled {
-      opacity: 0.38;
+      opacity: 0.48;
       cursor: not-allowed;
     }
 
@@ -198,7 +253,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-weight: 500;
       color: var(--text-primary);
       padding: 4px 10px;
-      border-right: 1px solid var(--border-token);
+      border-right: 1px solid var(--control-border-aa);
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       user-select: none;
@@ -212,15 +267,15 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     .feedback-banner[data-tone="ok"] {
-      color: var(--viz-emerald);
+      color: var(--text-emerald-aa);
     }
 
     .feedback-banner[data-tone="warn"] {
-      color: var(--viz-amber);
+      color: var(--text-amber-aa);
     }
 
     .feedback-banner[data-tone="error"] {
-      color: var(--viz-rose);
+      color: var(--text-rose-aa);
     }
 
     .status-pill {
@@ -229,30 +284,31 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-weight: 600;
       padding: 4px 10px;
       border-radius: 6px;
-      border: 1px solid var(--border-token);
+      border: 1px solid var(--control-border-aa);
       background-color: var(--bg-viewport);
+      color: var(--text-primary);
       font-variant-numeric: tabular-nums;
     }
 
     .status-pill[data-status="PASSED"] {
-      color: var(--viz-emerald);
-      border-color: var(--viz-emerald);
+      color: var(--text-emerald-aa);
+      border-color: var(--text-emerald-aa);
     }
 
     .status-pill[data-status="WARNING"] {
-      color: var(--viz-amber);
-      border-color: var(--viz-amber);
+      color: var(--text-amber-aa);
+      border-color: var(--text-amber-aa);
     }
 
     .status-pill[data-status="CRITICAL INJECTION DETECTED"],
     .status-pill[data-status="BLOCKED"] {
-      color: var(--viz-rose);
-      border-color: var(--viz-rose);
+      color: var(--text-rose-aa);
+      border-color: var(--text-rose-aa);
     }
 
     .status-pill[data-status="SCANNING"] {
-      color: var(--viz-teal);
-      border-color: var(--viz-teal);
+      color: var(--text-teal-aa);
+      border-color: var(--text-teal-aa);
     }
 
     .bento-workspace.is-scanning .analysis-pane,
@@ -274,7 +330,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       top: 0;
       bottom: 0;
       width: 38%;
-      background-color: var(--viz-teal);
+      background-color: var(--btn-teal-bg-aa);
       border-radius: 2px;
       animation: pg-slide 1.15s ease-in-out infinite;
     }
@@ -282,6 +338,14 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     @keyframes pg-slide {
       0% { left: -38%; }
       100% { left: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .progress-bar-indeterminate {
+        animation: none;
+        left: 0;
+        width: 100%;
+      }
     }
 
     .viewport-status-msg {
@@ -294,7 +358,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     .theme-selector {
       display: inline-flex;
-      border: 1px solid var(--border-token);
+      border: 1px solid var(--control-border-aa);
       border-radius: 6px;
       background-color: var(--bg-viewport);
       overflow: hidden;
@@ -304,7 +368,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       appearance: none;
       background: transparent;
       border: none;
-      border-right: 1px solid var(--border-token);
+      border-right: 1px solid var(--control-border-aa);
       color: var(--text-secondary);
       font-family: var(--font-ui);
       font-size: 12px;
@@ -324,15 +388,19 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       background-color: var(--bg-surface);
       color: var(--text-primary);
       font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
 
     .bento-workspace {
       max-width: 1480px;
+      width: 100%;
       margin: 0 auto;
       padding: 20px 24px 36px;
       display: grid;
       grid-template-columns: repeat(12, 1fr);
       gap: 16px;
+      flex: 1 0 auto;
     }
 
     .pane {
@@ -420,6 +488,14 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       word-break: break-all;
     }
 
+    .metric-value-safe {
+      color: var(--text-emerald-aa);
+    }
+
+    .metric-value-danger {
+      color: var(--text-rose-aa);
+    }
+
     .metric-sub {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -479,7 +555,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       cursor: pointer;
     }
 
-    .bbox-group:hover rect.bbox-stroke {
+    .bbox-group:hover rect.bbox-stroke,
+    .bbox-group:focus-visible rect.bbox-stroke {
       stroke-width: 4;
     }
 
@@ -492,8 +569,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       padding: 6px 10px;
       border-radius: 6px;
       background-color: var(--bg-surface);
-      border: 1px solid var(--viz-rose);
-      color: var(--viz-rose);
+      border: 1px solid var(--text-rose-aa);
+      color: var(--text-rose-aa);
     }
 
     /* Channel Breakdown List */
@@ -536,6 +613,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       font-variant-numeric: tabular-nums;
     }
 
+    .channel-tone-safe { color: var(--text-emerald-aa); }
+    .channel-tone-warn { color: var(--text-amber-aa); }
+    .channel-tone-crit { color: var(--text-rose-aa); }
+
     .safe-copy-box {
       font-family: var(--font-mono);
       font-size: 13px;
@@ -571,11 +652,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     table.data-table tr.highlighted-row {
       background-color: rgba(225, 29, 72, 0.10);
+      border-left: 3px solid var(--text-rose-aa);
     }
 
     table.data-table th {
       color: var(--text-secondary);
-      font-weight: 500;
+      font-weight: 600;
       text-transform: uppercase;
       font-size: 11px;
       letter-spacing: 0.03em;
@@ -590,10 +672,18 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       border: 1px solid currentColor;
     }
 
-    .risk-CRITICAL { color: var(--viz-rose); }
-    .risk-HIGH     { color: var(--viz-amber); }
-    .risk-MEDIUM   { color: var(--viz-indigo); }
-    .risk-CLEAN    { color: var(--viz-emerald); }
+    .risk-CRITICAL { color: var(--text-rose-aa); }
+    .risk-HIGH     { color: var(--text-amber-aa); }
+    .risk-MEDIUM   { color: var(--text-indigo-aa); }
+    .risk-CLEAN    { color: var(--text-emerald-aa); }
+
+    .selected-tag {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-rose-aa);
+    }
 
     .legend-bar {
       display: flex;
@@ -616,9 +706,25 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
       border-radius: 2px;
       display: inline-block;
     }
+
+    .site-footer {
+      max-width: 1480px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 12px 24px 24px;
+      border-top: 1px solid var(--border-token);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#bento-workspace">Skip to main content</a>
   <header class="topbar">
     <div class="topbar-left">
       <h1 class="brand-title">Pixel Guard</h1>
@@ -631,19 +737,19 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           aria-label="Load Image"
         />
       </label>
-      <span class="feedback-banner" id="scan-feedback-banner" data-tone="neutral"></span>
+      <span class="feedback-banner" id="scan-feedback-banner" data-tone="neutral" role="status" aria-live="polite"></span>
     </div>
-    <div class="nav-controls">
-      <span class="status-pill" id="hdr-status" data-status="PASSED">PASSED</span>
+    <nav class="nav-controls" aria-label="Dashboard Status and Theme Controls">
+      <span class="status-pill" id="hdr-status" data-status="PASSED" aria-live="polite">PASSED</span>
       <div class="theme-selector" role="group" aria-label="Appearance Theme Selector">
         <button type="button" id="theme-btn-light" class="theme-btn" title="Light Theme" aria-label="Light Theme" data-theme-mode="light" aria-pressed="false">Light</button>
         <button type="button" id="theme-btn-dark" class="theme-btn" title="Dark Theme" aria-label="Dark Theme" data-theme-mode="dark" aria-pressed="false">Dark</button>
         <button type="button" id="theme-btn-system" class="theme-btn active" title="System Theme" aria-label="System Theme" data-theme-mode="system" aria-pressed="true">System</button>
       </div>
-    </div>
+    </nav>
   </header>
 
-  <main class="bento-workspace" id="bento-workspace">
+  <main class="bento-workspace" id="bento-workspace" tabindex="-1">
     <section class="pane span-12 analysis-pane" id="pane-scan-summary">
       <div class="pane-header">
         <h2 class="pane-title">Scan Summary</h2>
@@ -662,12 +768,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <div class="metric-cell">
           <div class="metric-label">Section 1 (Safe Visible)</div>
-          <div class="metric-value" id="val-visible" style="color: var(--viz-emerald);">0</div>
+          <div class="metric-value metric-value-safe" id="val-visible">0</div>
           <div class="metric-sub">WCAG CR &gt;= 3.0 &amp; Clean</div>
         </div>
         <div class="metric-cell">
           <div class="metric-label">Section 2 (Quarantined)</div>
-          <div class="metric-value" id="val-quarantined" style="color: var(--viz-rose);">0</div>
+          <div class="metric-value metric-value-danger" id="val-quarantined">0</div>
           <div class="metric-sub">Hidden or Injection Match</div>
         </div>
         <div class="metric-cell">
@@ -688,34 +794,34 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             <button type="button" class="seg-btn page-arrow-btn" id="page-next-btn" title="Next Page" aria-label="Next Page">&gt;</button>
           </div>
           <div class="segmented-group" role="group" aria-label="Image Render Mode">
-            <button type="button" class="seg-btn active" id="view-btn-original">Original Image</button>
-            <button type="button" class="seg-btn" id="view-btn-reveal">Enhanced Reveal</button>
+            <button type="button" class="seg-btn active" id="view-btn-original" aria-pressed="true">Original Image</button>
+            <button type="button" class="seg-btn" id="view-btn-reveal" aria-pressed="false">Enhanced Reveal</button>
           </div>
-          <button type="button" class="action-btn active-toggle" id="toggle-boxes-btn">Boxes: On</button>
+          <button type="button" class="action-btn active-toggle" id="toggle-boxes-btn" aria-pressed="true">Boxes: On</button>
         </div>
       </div>
       <div class="image-viewport" id="image-viewport">
         <div class="image-frame-wrapper" id="image-frame-wrapper">
           <img id="inspected-image-el" class="inspected-img" alt="Inspected asset" />
-          <svg id="bbox-overlay-svg" class="bbox-overlay-svg" preserveAspectRatio="none"></svg>
+          <svg id="bbox-overlay-svg" class="bbox-overlay-svg" preserveAspectRatio="none" role="img" aria-label="Detected text region overlays"></svg>
         </div>
-        <div class="viewport-status-msg" id="image-loading-notice" style="display:none;"></div>
-        <div class="metadata-notice-pill" id="metadata-only-pill" style="display:none;">
-          Non-pixel payload detected in file metadata (see Section 2)
+        <div class="viewport-status-msg" id="image-loading-notice" style="display:none;" role="status" aria-live="polite"></div>
+        <div class="metadata-notice-pill" id="metadata-only-pill" style="display:none;" role="status">
+          [METADATA] Non-pixel payload detected in file metadata (see Section 2)
         </div>
       </div>
       <div class="legend-bar" id="image-legend-bar">
-        <span class="legend-item"><span class="legend-swatch" style="background:#059669;"></span>Section 1: Human-Visible Safe Text</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#E11D48;"></span>Section 2: Critical Hidden / Injection</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#D97706;"></span>Section 2: Camouflage / Anomaly Warning</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#059669;" aria-hidden="true"></span>[SAFE] Section 1: Human-Visible Safe Text</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#E11D48;" aria-hidden="true"></span>[CRITICAL] Section 2: Critical Hidden / Injection</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#D97706;" aria-hidden="true"></span>[WARNING] Section 2: Camouflage / Anomaly Warning</span>
         <span class="pane-meta" id="reveal-hint-label">Switch to "Enhanced Reveal" to visualize camouflaged or transparent ink</span>
       </div>
     </section>
 
-    <section class="pane span-4" id="pane-processing-status" style="display:none;">
+    <section class="pane span-4" id="pane-processing-status" style="display:none;" aria-live="polite">
       <div class="pane-header">
         <h2 class="pane-title" id="proc-pane-title">Processing Image</h2>
-        <span class="pane-meta" id="proc-pane-badge">Running Skill</span>
+        <span class="pane-meta" id="proc-pane-badge">[RUNNING]</span>
       </div>
       <div class="progress-track" id="proc-progress-track">
         <div class="progress-bar-indeterminate"></div>
@@ -741,11 +847,11 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Line</th>
-              <th>Box (x,y,w,h)</th>
-              <th>Contrast</th>
-              <th>dE_00</th>
-              <th>FG / BG</th>
+              <th scope="col">Line</th>
+              <th scope="col">Box (x,y,w,h)</th>
+              <th scope="col">Contrast</th>
+              <th scope="col">dE_00</th>
+              <th scope="col">FG / BG</th>
             </tr>
           </thead>
           <tbody id="sec1-tbody"></tbody>
@@ -762,12 +868,12 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Box #</th>
-              <th>Severity</th>
-              <th>Detection Channel</th>
-              <th>Metrics</th>
-              <th>Flags</th>
-              <th>Extracted Text</th>
+              <th scope="col">Box #</th>
+              <th scope="col">Severity</th>
+              <th scope="col">Detection Channel</th>
+              <th scope="col">Metrics</th>
+              <th scope="col">Flags</th>
+              <th scope="col">Extracted Text</th>
             </tr>
           </thead>
           <tbody id="sec2-tbody"></tbody>
@@ -776,11 +882,18 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </section>
   </main>
 
+  <footer class="site-footer">
+    <span>pixel-guard Deterministic Local Image Sanitizer</span>
+    <span>Local offline analysis (zero external network calls)</span>
+  </footer>
+
   <script id="pixel-guard-empirical-bundle" type="application/json">__PIXEL_GUARD_JSON_PAYLOAD__</script>
-  <script>
+  <script id="pixel-guard-app-script">
     (function () {
       const STORAGE_KEY = "pixel_guard_theme_mode";
-      const EMBEDDED_STUDIO_URL = "__PIXEL_GUARD_STUDIO_URL__";
+      const EMBEDDED_STUDIO_URL = __PIXEL_GUARD_STUDIO_URL__;
+      const STUDIO_TOKEN = __PIXEL_GUARD_STUDIO_TOKEN__;
+      const ALLOWED_RISKS = { CRITICAL: true, HIGH: true, MEDIUM: true, CLEAN: true };
       const PALETTE = {
         teal: "#0D9488",
         amber: "#D97706",
@@ -788,12 +901,17 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         emerald: "#059669",
         rose: "#E11D48"
       };
+      const BADGE_FILL_AA = {
+        emerald: "#047857",
+        amber: "#B45309",
+        rose: "#BE123C"
+      };
 
       function resolveApiBase() {
         if (window.location.protocol === "http:" || window.location.protocol === "https:") {
           return window.location.origin;
         }
-        if (EMBEDDED_STUDIO_URL && EMBEDDED_STUDIO_URL.indexOf("http") === 0) {
+        if (typeof EMBEDDED_STUDIO_URL === "string" && /^http:\/\/(127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(EMBEDDED_STUDIO_URL)) {
           return EMBEDDED_STUDIO_URL;
         }
         return "http://127.0.0.1:18765";
@@ -803,7 +921,13 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       let state = {
         report: JSON.parse(document.getElementById("pixel-guard-empirical-bundle").textContent),
-        themeMode: localStorage.getItem(STORAGE_KEY) || "system",
+        themeMode: (function () {
+          try {
+            return localStorage.getItem(STORAGE_KEY) || "system";
+          } catch (_) {
+            return "system";
+          }
+        })(),
         activeTheme: "light",
         imageViewMode: "original",
         activeFrameIndex: 0,
@@ -813,6 +937,20 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       const mediaQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
+      function safeNum(val, fallback) {
+        const n = Number(val);
+        return Number.isFinite(n) ? n : (fallback || 0);
+      }
+
+      function safeRiskLevel(val) {
+        const key = String(val || "").toUpperCase();
+        return ALLOWED_RISKS[key] ? key : "MEDIUM";
+      }
+
+      function isSafeImageDataUri(uri) {
+        return typeof uri === "string" && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(uri);
+      }
+
       function getPreviewFrames(r) {
         const previews = (r && r.preview_images) ? r.preview_images : {};
         if (Array.isArray(previews.frames) && previews.frames.length > 0) {
@@ -821,8 +959,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         return [
           {
             frame_index: 0,
-            width: (r && r.dimensions) ? r.dimensions.width : 1,
-            height: (r && r.dimensions) ? r.dimensions.height : 1,
+            width: (r && r.dimensions) ? safeNum(r.dimensions.width, 1) : 1,
+            height: (r && r.dimensions) ? safeNum(r.dimensions.height, 1) : 1,
             original_data_uri: previews.original_data_uri || "",
             reveal_data_uri: previews.reveal_data_uri || previews.original_data_uri || ""
           }
@@ -912,7 +1050,19 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function activateRow(tr) {
+        const targetFrame = parseInt(tr.getAttribute("data-jump-frame"), 10) || 0;
+        const qRowId = tr.getAttribute("data-quar-row-id");
+        if (qRowId) {
+          state.selectedQuarantineId = parseInt(qRowId, 10);
+        }
+        state.activeFrameIndex = targetFrame;
+        renderSummaryAndTables();
+        renderInspectedImageAndBoxes();
       }
 
       function renderSummaryAndTables() {
@@ -927,13 +1077,13 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         document.getElementById("meta-filepath").textContent = r.image_path;
         document.getElementById("val-filename").textContent = r.image_filename;
-        document.getElementById("val-format").textContent = r.format + " (" + r.dimensions.channels + " channels)";
-        document.getElementById("val-dims").textContent = r.dimensions.width + " x " + r.dimensions.height + " px";
-        document.getElementById("val-frames").textContent = unitLabel + r.frames_analyzed + " / " + (r.frames_total || r.frames_analyzed);
-        document.getElementById("val-visible").textContent = String(r.visible_count);
-        document.getElementById("val-quarantined").textContent = String(r.quarantined_count);
-        document.getElementById("val-latency").textContent = r.elapsed_ms.toFixed(1) + " ms";
-        document.getElementById("val-total-sub").textContent = r.total_regions_found + " total text item(s)";
+        document.getElementById("val-format").textContent = r.format + " (" + safeNum(r.dimensions.channels) + " channels)";
+        document.getElementById("val-dims").textContent = safeNum(r.dimensions.width) + " x " + safeNum(r.dimensions.height) + " px";
+        document.getElementById("val-frames").textContent = unitLabel + safeNum(r.frames_analyzed) + " / " + safeNum(r.frames_total || r.frames_analyzed);
+        document.getElementById("val-visible").textContent = String(safeNum(r.visible_count));
+        document.getElementById("val-quarantined").textContent = String(safeNum(r.quarantined_count));
+        document.getElementById("val-latency").textContent = safeNum(r.elapsed_ms).toFixed(1) + " ms";
+        document.getElementById("val-total-sub").textContent = safeNum(r.total_regions_found) + " total text item(s)";
 
         const sec1Box = document.getElementById("sec1-text-box");
         const sec1Body = document.getElementById("sec1-tbody");
@@ -942,18 +1092,21 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           sec1Body.innerHTML = "<tr><td colspan=\"5\">Zero human-visible clean regions recorded.</td></tr>";
         } else {
           sec1Box.textContent = r.section_1_visible_text.map(function (item) {
-            const pfx = isMultiPage ? "[Page " + ((item.frame_index || 0) + 1) + "] " : "";
+            const pfx = isMultiPage ? "[Page " + (safeNum(item.frame_index) + 1) + "] " : "";
             return pfx + item.text;
           }).join("\n");
           sec1Body.innerHTML = r.section_1_visible_text.map(function (item, idx) {
-            const fIdx = item.frame_index || 0;
+            const fIdx = safeNum(item.frame_index);
             const pageSuffix = isMultiPage ? " (P" + (fIdx + 1) + ")" : "";
-            const clickStyle = isMultiPage ? " style=\"cursor:pointer;\"" : "";
-            return "<tr data-jump-frame=\"" + fIdx + "\"" + clickStyle + ">" +
+            const bboxSafe = Array.isArray(item.bbox) ? item.bbox.map(function (n) { return safeNum(n); }).join(", ") : "0, 0, 0, 0";
+            const interactiveAttrs = isMultiPage
+              ? " tabindex=\"0\" role=\"button\" style=\"cursor:pointer;\""
+              : "";
+            return "<tr data-jump-frame=\"" + fIdx + "\"" + interactiveAttrs + ">" +
               "<td>V" + (idx + 1) + pageSuffix + "</td>" +
-              "<td>[" + item.bbox.join(", ") + "]</td>" +
-              "<td>" + item.contrast_ratio.toFixed(2) + ":1</td>" +
-              "<td>" + item.delta_e.toFixed(1) + "</td>" +
+              "<td>[" + bboxSafe + "]</td>" +
+              "<td>" + safeNum(item.contrast_ratio).toFixed(2) + ":1</td>" +
+              "<td>" + safeNum(item.delta_e).toFixed(1) + "</td>" +
               "<td>" + escapeHtml(item.foreground_hex) + " / " + escapeHtml(item.background_hex) + "</td>" +
               "</tr>";
           }).join("");
@@ -966,21 +1119,28 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           sec2Body.innerHTML = "<tr><td colspan=\"6\">No hidden, camouflaged, or prompt-injection payloads detected.</td></tr>";
         } else {
           sec2Body.innerHTML = r.section_2_quarantined_items.map(function (item) {
+            const itemId = safeNum(item.item_id);
+            const risk = safeRiskLevel(item.risk_level);
             const metricsParts = [];
             if (typeof item.contrast_ratio === "number") metricsParts.push("CR " + item.contrast_ratio.toFixed(2) + ":1");
             if (typeof item.delta_e === "number") metricsParts.push("dE " + item.delta_e.toFixed(1));
-            if (typeof item.font_height_px === "number") metricsParts.push("H " + item.font_height_px + "px");
+            if (typeof item.font_height_px === "number") metricsParts.push("H " + safeNum(item.font_height_px) + "px");
             if (typeof item.mean_alpha === "number" && item.mean_alpha < 0.999) metricsParts.push("Alpha " + item.mean_alpha.toFixed(2));
-            const fIdx = item.frame_index || 0;
+            const fIdx = safeNum(item.frame_index);
             const pageSuffix = (isMultiPage && item.bbox) ? " (P" + (fIdx + 1) + ")" : "";
-            const rowCls = state.selectedQuarantineId === item.item_id ? " class=\"highlighted-row\"" : "";
-            const clickStyle = item.bbox ? " style=\"cursor:pointer;\"" : "";
-            return "<tr id=\"quar-row-" + item.item_id + "\" data-jump-frame=\"" + fIdx + "\" data-quar-row-id=\"" + item.item_id + "\"" + rowCls + clickStyle + ">" +
-              "<td><strong>#" + item.item_id + pageSuffix + "</strong></td>" +
-              "<td><span class=\"risk-badge risk-" + escapeHtml(item.risk_level) + "\">" + escapeHtml(item.risk_level) + "</span></td>" +
+            const isSelected = state.selectedQuarantineId === itemId;
+            const rowCls = isSelected ? " class=\"highlighted-row\" aria-selected=\"true\"" : "";
+            const selectedBadge = isSelected ? "<span class=\"selected-tag\">[SELECTED]</span>" : "";
+            const interactiveAttrs = item.bbox
+              ? " tabindex=\"0\" role=\"button\" style=\"cursor:pointer;\""
+              : "";
+            const flagsList = Array.isArray(item.security_flags) ? item.security_flags.join(", ") : "";
+            return "<tr id=\"quar-row-" + itemId + "\" data-jump-frame=\"" + fIdx + "\" data-quar-row-id=\"" + itemId + "\"" + rowCls + interactiveAttrs + ">" +
+              "<td><strong>#" + itemId + pageSuffix + "</strong>" + selectedBadge + "</td>" +
+              "<td><span class=\"risk-badge risk-" + risk + "\">[" + risk + "]</span></td>" +
               "<td>" + escapeHtml(item.detection_method) + "</td>" +
-              "<td>" + (metricsParts.join(" | ") || "Metadata Container") + "</td>" +
-              "<td>" + escapeHtml(item.security_flags.join(", ")) + "</td>" +
+              "<td>" + escapeHtml(metricsParts.join(" | ") || "Metadata Container") + "</td>" +
+              "<td>" + escapeHtml(flagsList) + "</td>" +
               "<td>" + escapeHtml(item.text) + "</td>" +
               "</tr>";
           }).join("");
@@ -988,14 +1148,13 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         Array.prototype.forEach.call(document.querySelectorAll("tr[data-jump-frame]"), function (tr) {
           tr.addEventListener("click", function () {
-            const targetFrame = parseInt(tr.getAttribute("data-jump-frame"), 10) || 0;
-            const qRowId = tr.getAttribute("data-quar-row-id");
-            if (qRowId) {
-              state.selectedQuarantineId = parseInt(qRowId, 10);
+            activateRow(tr);
+          });
+          tr.addEventListener("keydown", function (ev) {
+            if (ev.key === "Enter" || ev.key === " ") {
+              ev.preventDefault();
+              activateRow(tr);
             }
-            state.activeFrameIndex = targetFrame;
-            renderSummaryAndTables();
-            renderInspectedImageAndBoxes();
           });
         });
       }
@@ -1036,9 +1195,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           pageNavGroup.classList.toggle("has-multipage", totalPages > 1);
         }
 
-        const activeUri = state.imageViewMode === "reveal"
+        const candidateUri = state.imageViewMode === "reveal"
           ? (activeFrame.reveal_data_uri || activeFrame.original_data_uri || "")
           : (activeFrame.original_data_uri || "");
+        const activeUri = isSafeImageDataUri(candidateUri) ? candidateUri : "";
 
         if (activeUri) {
           imgEl.src = activeUri;
@@ -1052,7 +1212,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           const otherFlaggedPages = [];
           if (totalPages > 1) {
             r.section_2_quarantined_items.forEach(function (q) {
-              const qf = q.frame_index || 0;
+              const qf = safeNum(q.frame_index);
               if (q.bbox && qf !== pageIdx && otherFlaggedPages.indexOf(qf + 1) === -1) {
                 otherFlaggedPages.push(qf + 1);
               }
@@ -1071,8 +1231,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           }
         }
 
-        const origW = Math.max(1, activeFrame.width || r.dimensions.width);
-        const origH = Math.max(1, activeFrame.height || r.dimensions.height);
+        const origW = Math.max(1, safeNum(activeFrame.width || r.dimensions.width, 1));
+        const origH = Math.max(1, safeNum(activeFrame.height || r.dimensions.height, 1));
         svgEl.setAttribute("viewBox", "0 0 " + origW + " " + origH);
 
         const hasMetadataOnly = r.section_2_quarantined_items.length > 0 &&
@@ -1093,20 +1253,20 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         // 1. Section 1 Verified Visible Boxes on active page (Emerald)
         r.section_1_visible_text.forEach(function (v, idx) {
-          if ((v.frame_index || 0) !== pageIdx) return;
-          const x = Math.max(0, v.bbox[0] - pad);
-          const y = Math.max(0, v.bbox[1] - pad);
-          const w = Math.min(origW - x, v.bbox[2] + pad * 2);
-          const h = Math.min(origH - y, v.bbox[3] + pad * 2);
+          if (safeNum(v.frame_index) !== pageIdx || !Array.isArray(v.bbox) || v.bbox.length < 4) return;
+          const x = Math.max(0, safeNum(v.bbox[0]) - pad);
+          const y = Math.max(0, safeNum(v.bbox[1]) - pad);
+          const w = Math.min(origW - x, safeNum(v.bbox[2]) + pad * 2);
+          const h = Math.min(origH - y, safeNum(v.bbox[3]) + pad * 2);
           const tagW = fontSize * 2.4;
           const tagH = fontSize * 1.38;
           const tagY = y >= tagH + 2 ? (y - tagH) : y;
 
           svgMarkup += "<g class=\"bbox-group\">" +
-            "<title>Section 1 Visible (V" + (idx + 1) + "): " + escapeHtml(v.text) + " | CR " + v.contrast_ratio.toFixed(2) + ":1</title>" +
+            "<title>Section 1 Visible (V" + (idx + 1) + "): " + escapeHtml(v.text) + " | CR " + safeNum(v.contrast_ratio).toFixed(2) + ":1</title>" +
             "<rect class=\"bbox-stroke\" x=\"" + x + "\" y=\"" + y + "\" width=\"" + w + "\" height=\"" + h + "\" " +
               "fill=\"rgba(5, 150, 105, 0.12)\" stroke=\"" + PALETTE.emerald + "\" stroke-width=\"" + strokeScale + "\" rx=\"3\" />" +
-            "<rect x=\"" + x + "\" y=\"" + tagY + "\" width=\"" + tagW + "\" height=\"" + tagH + "\" fill=\"" + PALETTE.emerald + "\" rx=\"2\" />" +
+            "<rect x=\"" + x + "\" y=\"" + tagY + "\" width=\"" + tagW + "\" height=\"" + tagH + "\" fill=\"" + BADGE_FILL_AA.emerald + "\" rx=\"2\" />" +
             "<text x=\"" + (x + fontSize * 0.35) + "\" y=\"" + (tagY + fontSize * 1.02) + "\" fill=\"#FFFFFF\" " +
               "font-family=\"'IBM Plex Mono', monospace\" font-weight=\"600\" font-size=\"" + fontSize + "\">V" + (idx + 1) + "</text>" +
             "</g>";
@@ -1114,25 +1274,29 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         // 2. Section 2 Quarantined / Tampered Boxes on active page (Deep Rose / Amber)
         r.section_2_quarantined_items.forEach(function (q) {
-          if (!q.bbox || (q.frame_index || 0) !== pageIdx) return;
-          const isCrit = q.risk_level === "CRITICAL";
+          if (!Array.isArray(q.bbox) || q.bbox.length < 4 || safeNum(q.frame_index) !== pageIdx) return;
+          const itemId = safeNum(q.item_id);
+          const risk = safeRiskLevel(q.risk_level);
+          const isCrit = risk === "CRITICAL";
           const color = isCrit ? PALETTE.rose : PALETTE.amber;
+          const badgeFill = isCrit ? BADGE_FILL_AA.rose : BADGE_FILL_AA.amber;
           const fillRgba = isCrit ? "rgba(225, 29, 72, 0.16)" : "rgba(217, 119, 6, 0.16)";
-          const x = Math.max(0, q.bbox[0] - pad);
-          const y = Math.max(0, q.bbox[1] - pad);
-          const w = Math.min(origW - x, q.bbox[2] + pad * 2);
-          const h = Math.min(origH - y, q.bbox[3] + pad * 2);
-          const label = "#" + q.item_id + " " + q.risk_level;
+          const x = Math.max(0, safeNum(q.bbox[0]) - pad);
+          const y = Math.max(0, safeNum(q.bbox[1]) - pad);
+          const w = Math.min(origW - x, safeNum(q.bbox[2]) + pad * 2);
+          const h = Math.min(origH - y, safeNum(q.bbox[3]) + pad * 2);
+          const label = "#" + itemId + " " + risk;
           const tagW = Math.max(fontSize * 5.8, label.length * fontSize * 0.64);
           const tagH = fontSize * 1.42;
           const tagY = y >= tagH + 2 ? (y - tagH) : (y + h);
+          const flagsText = Array.isArray(q.security_flags) ? q.security_flags.join(", ") : "";
 
-          svgMarkup += "<g class=\"bbox-group\" data-quar-id=\"" + q.item_id + "\">" +
-            "<title>Quarantined #" + q.item_id + " [" + escapeHtml(q.risk_level) + "]: " + escapeHtml(q.text) +
-              " (" + escapeHtml(q.security_flags.join(", ")) + ")</title>" +
+          svgMarkup += "<g class=\"bbox-group\" tabindex=\"0\" role=\"button\" aria-label=\"Select quarantined finding " + escapeHtml(label) + "\" data-quar-id=\"" + itemId + "\">" +
+            "<title>Quarantined #" + itemId + " [" + risk + "]: " + escapeHtml(q.text) +
+              " (" + escapeHtml(flagsText) + ")</title>" +
             "<rect class=\"bbox-stroke\" x=\"" + x + "\" y=\"" + y + "\" width=\"" + w + "\" height=\"" + h + "\" " +
               "fill=\"" + fillRgba + "\" stroke=\"" + color + "\" stroke-width=\"" + (strokeScale + 1) + "\" rx=\"3\" />" +
-            "<rect x=\"" + x + "\" y=\"" + tagY + "\" width=\"" + tagW + "\" height=\"" + tagH + "\" fill=\"" + color + "\" rx=\"2\" />" +
+            "<rect x=\"" + x + "\" y=\"" + tagY + "\" width=\"" + tagW + "\" height=\"" + tagH + "\" fill=\"" + badgeFill + "\" rx=\"2\" />" +
             "<text x=\"" + (x + fontSize * 0.35) + "\" y=\"" + (tagY + fontSize * 1.03) + "\" fill=\"#FFFFFF\" " +
               "font-family=\"'IBM Plex Mono', monospace\" font-weight=\"600\" font-size=\"" + fontSize + "\">" + escapeHtml(label) + "</text>" +
             "</g>";
@@ -1140,14 +1304,24 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         svgEl.innerHTML = svgMarkup;
 
+        function selectQuarGroup(grp) {
+          const qId = parseInt(grp.getAttribute("data-quar-id"), 10);
+          state.selectedQuarantineId = qId;
+          renderSummaryAndTables();
+          const row = document.getElementById("quar-row-" + qId);
+          if (row && row.scrollIntoView) {
+            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        }
+
         Array.prototype.forEach.call(svgEl.querySelectorAll("[data-quar-id]"), function (grp) {
           grp.addEventListener("click", function () {
-            const qId = parseInt(grp.getAttribute("data-quar-id"), 10);
-            state.selectedQuarantineId = qId;
-            renderSummaryAndTables();
-            const row = document.getElementById("quar-row-" + qId);
-            if (row && row.scrollIntoView) {
-              row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            selectQuarGroup(grp);
+          });
+          grp.addEventListener("keydown", function (ev) {
+            if (ev.key === "Enter" || ev.key === " ") {
+              ev.preventDefault();
+              selectQuarGroup(grp);
             }
           });
         });
@@ -1201,18 +1375,18 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         container.innerHTML = specs.map(function (sp) {
           const hits = quar.filter(sp.match);
           const hasCrit = hits.some(function (h) { return h.risk_level === "CRITICAL"; });
-          let badgeColor = PALETTE.emerald;
-          let badgeText = sp.visCount ? (sp.visCount + " Safe") : "Clean";
+          let toneClass = "channel-tone-safe";
+          let badgeText = sp.visCount ? ("[SAFE] " + sp.visCount + " Safe") : "[CLEAN]";
           if (hits.length > 0) {
-            badgeColor = hasCrit ? PALETTE.rose : PALETTE.amber;
-            badgeText = hits.length + " Flagged";
+            toneClass = hasCrit ? "channel-tone-crit" : "channel-tone-warn";
+            badgeText = (hasCrit ? "[CRITICAL] " : "[WARNING] ") + hits.length + " Flagged";
           }
           return "<div class=\"channel-card\">" +
             "<div>" +
               "<div class=\"channel-name\">" + escapeHtml(sp.name) + "</div>" +
               "<div class=\"channel-desc\">" + escapeHtml(sp.desc) + "</div>" +
             "</div>" +
-            "<span class=\"channel-count\" style=\"color:" + badgeColor + ";\">" + escapeHtml(badgeText) + "</span>" +
+            "<span class=\"channel-count " + toneClass + "\">" + escapeHtml(badgeText) + "</span>" +
             "</div>";
         }).join("");
       }
@@ -1228,8 +1402,14 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         state.imageViewMode = mode;
         const btnOrig = document.getElementById("view-btn-original");
         const btnRev = document.getElementById("view-btn-reveal");
-        if (btnOrig) btnOrig.classList.toggle("active", mode === "original");
-        if (btnRev) btnRev.classList.toggle("active", mode === "reveal");
+        if (btnOrig) {
+          btnOrig.classList.toggle("active", mode === "original");
+          btnOrig.setAttribute("aria-pressed", mode === "original" ? "true" : "false");
+        }
+        if (btnRev) {
+          btnRev.classList.toggle("active", mode === "reveal");
+          btnRev.setAttribute("aria-pressed", mode === "reveal" ? "true" : "false");
+        }
         if (state.report) renderInspectedImageAndBoxes();
       }
 
@@ -1312,7 +1492,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const procBox = document.getElementById("proc-detail-box");
         if (procPane) procPane.style.display = "flex";
         if (procTitle) procTitle.textContent = "Processing Image";
-        if (procBadge) procBadge.textContent = "Running Skill";
+        if (procBadge) procBadge.textContent = "[RUNNING]";
         if (procTrack) procTrack.style.display = "block";
         if (procBox) {
           procBox.textContent =
@@ -1355,7 +1535,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           imgEl.style.display = "none";
         }
         if (loadingNotice) {
-          loadingNotice.textContent = fileName + " rejected before pixel decoding.";
+          loadingNotice.textContent = "[ERROR] " + fileName + " rejected before pixel decoding.";
           loadingNotice.style.display = "block";
         }
         if (pageLabelEl) pageLabelEl.textContent = "Blocked";
@@ -1367,7 +1547,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const procBox = document.getElementById("proc-detail-box");
         if (procPane) procPane.style.display = "flex";
         if (procTitle) procTitle.textContent = "Validation Blocked";
-        if (procBadge) procBadge.textContent = badgeLabel;
+        if (procBadge) procBadge.textContent = "[ERROR] " + badgeLabel;
         if (procTrack) procTrack.style.display = "none";
         if (procBox) procBox.textContent = messageText;
       }
@@ -1386,9 +1566,10 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const tone = newReport.scan_status === "PASSED"
           ? "ok"
           : (newReport.scan_status === "WARNING" ? "warn" : "error");
+        const statusTag = tone === "ok" ? "[PASSED] " : (tone === "warn" ? "[WARNING] " : "[ALERT] ");
         setFeedback(
-          "Executed Pixel Guard on " + newReport.image_filename + pageInfo + " -> " + newReport.scan_status +
-          " (" + newReport.elapsed_ms.toFixed(1) + " ms)",
+          statusTag + "Executed Pixel Guard on " + newReport.image_filename + pageInfo + " -> " + newReport.scan_status +
+          " (" + safeNum(newReport.elapsed_ms).toFixed(1) + " ms)",
           tone
         );
       }
@@ -1397,7 +1578,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
         const msg = "Local Pixel Guard server unreachable at " + API_BASE +
           ". Run: python3 scripts/pixel_guard_cli.py tests/images/clean_control.png";
         enterBlockedOrErrorState(fileName || "Image", "Server Offline", msg);
-        setFeedback(msg, "error");
+        setFeedback("[ERROR] " + msg, "error");
       }
 
       function uploadAndExecuteSkill(fileObj) {
@@ -1411,7 +1592,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         setScanningBusy(true);
         enterPendingScanState(fileObj.name, isBrowserNative);
-        setFeedback("Executing Pixel Guard pipeline on " + fileObj.name + "...", "neutral");
+        setFeedback("[ACTIVE] Executing Pixel Guard pipeline on " + fileObj.name + "...", "neutral");
 
         // Immediately show the newly selected image (without any old analysis panes) while Python runs
         const imgEl = document.getElementById("inspected-image-el");
@@ -1426,12 +1607,17 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
           reader.readAsDataURL(fileObj);
         }
 
+        const reqHeaders = {
+          "Content-Type": "application/octet-stream",
+          "X-Filename": encodeURIComponent(fileObj.name)
+        };
+        if (STUDIO_TOKEN) {
+          reqHeaders["X-Pixel-Guard-Token"] = STUDIO_TOKEN;
+        }
+
         fetch(API_BASE + "/api/scan-upload", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "X-Filename": encodeURIComponent(fileObj.name)
-          },
+          headers: reqHeaders,
           body: fileObj
         })
           .then(function (resp) {
@@ -1451,7 +1637,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
                 errCode,
                 "Target: " + fileObj.name + "\nError Code: " + errCode + "\nReason: " + errMsg
               );
-              setFeedback("Blocked " + fileObj.name + " [" + errCode + "]: " + errMsg, "error");
+              setFeedback("[ERROR] Blocked " + fileObj.name + " [" + errCode + "]: " + errMsg, "error");
               return;
             }
             applyNewScanReport(res.body);
@@ -1511,6 +1697,7 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
             state.showBoxes = !state.showBoxes;
             toggleBoxesBtn.textContent = state.showBoxes ? "Boxes: On" : "Boxes: Off";
             toggleBoxesBtn.classList.toggle("active-toggle", state.showBoxes);
+            toggleBoxesBtn.setAttribute("aria-pressed", state.showBoxes ? "true" : "false");
             renderInspectedImageAndBoxes();
           });
         }
@@ -1524,7 +1711,8 @@ DASHBOARD_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         if (typeof EventSource !== "undefined") {
           try {
-            const es = new EventSource(API_BASE + "/events");
+            const sseUrl = API_BASE + "/events" + (STUDIO_TOKEN ? "?token=" + encodeURIComponent(STUDIO_TOKEN) : "");
+            const es = new EventSource(sseUrl);
             es.addEventListener("scan_update", function (evt) {
               const incoming = JSON.parse(evt.data);
               if (!state.report || incoming.sha256 !== state.report.sha256 || incoming.image_filename !== state.report.image_filename) {

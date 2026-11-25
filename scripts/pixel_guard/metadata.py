@@ -92,11 +92,35 @@ def sanitize_metadata_text(raw: Any, tag_name: str = "") -> str:
     return cleaned
 
 
-def _parse_png_text_chunks(path: Path) -> list[tuple[str, str]]:
-    """Directly parse PNG tEXt, zTXt, and iTXt chunks from binary stream."""
+_DEFAULT_MAX_FILE_BYTES = 50 * 1024 * 1024
+_DEFAULT_MAX_CHUNK_BYTES = 1 * 1024 * 1024
+
+
+def _safe_zlib_decompress(data: bytes, max_bytes: int = _DEFAULT_MAX_CHUNK_BYTES) -> bytes:
+    """Decompress a zlib stream with a strict upper bound to prevent decompression bombs."""
+    decompressor = zlib.decompressobj()
+    out = decompressor.decompress(data, max_bytes + 1)
+    if len(out) > max_bytes or decompressor.unconsumed_tail:
+        logger.warning("Truncated oversized compressed metadata chunk at %d bytes", max_bytes)
+        return out[:max_bytes]
+    return out
+
+
+def _read_bounded_bytes(path: Path, max_bytes: int = _DEFAULT_MAX_FILE_BYTES) -> bytes:
+    """Read at most max_bytes from path to avoid unbounded memory allocation."""
+    with path.open("rb") as fh:
+        return fh.read(max_bytes)
+
+
+def _parse_png_text_chunks(
+    path: Path,
+    max_file_bytes: int = _DEFAULT_MAX_FILE_BYTES,
+    max_chunk_bytes: int = _DEFAULT_MAX_CHUNK_BYTES,
+) -> list[tuple[str, str]]:
+    """Directly parse PNG tEXt, zTXt, and iTXt chunks from binary stream with bounded decompression."""
     results: list[tuple[str, str]] = []
     try:
-        data = path.read_bytes()
+        data = _read_bounded_bytes(path, max_bytes=max_file_bytes)
     except OSError:
         return results
 
@@ -118,7 +142,7 @@ def _parse_png_text_chunks(path: Path) -> list[tuple[str, str]]:
         if chunk_type == b"tEXt" and b"\x00" in chunk_data:
             key_bytes, val_bytes = chunk_data.split(b"\x00", 1)
             key = key_bytes.decode("latin-1", errors="replace").strip()
-            val = sanitize_metadata_text(val_bytes)
+            val = sanitize_metadata_text(val_bytes[:max_chunk_bytes])
             if val:
                 results.append((f"PNG:tEXt:{key}", val))
         elif chunk_type == b"zTXt" and b"\x00" in chunk_data:
@@ -126,7 +150,7 @@ def _parse_png_text_chunks(path: Path) -> list[tuple[str, str]]:
             key = key_bytes.decode("latin-1", errors="replace").strip()
             if len(rest) >= 2 and rest[0] == 0:
                 try:
-                    decompressed = zlib.decompress(rest[1:])
+                    decompressed = _safe_zlib_decompress(rest[1:], max_bytes=max_chunk_bytes)
                     val = sanitize_metadata_text(decompressed)
                     if val:
                         results.append((f"PNG:zTXt:{key}", val))
@@ -144,7 +168,9 @@ def _parse_png_text_chunks(path: Path) -> list[tuple[str, str]]:
                     if len(parts) == 3:
                         text_bytes = parts[2]
                         if comp_flag == 1:
-                            text_bytes = zlib.decompress(text_bytes)
+                            text_bytes = _safe_zlib_decompress(text_bytes, max_bytes=max_chunk_bytes)
+                        else:
+                            text_bytes = text_bytes[:max_chunk_bytes]
                         val = sanitize_metadata_text(text_bytes)
                         if val:
                             results.append((f"PNG:iTXt:{key}", val))
@@ -155,18 +181,19 @@ def _parse_png_text_chunks(path: Path) -> list[tuple[str, str]]:
     return results
 
 
-def _extract_safe_xmp_strings(xmp_xml: str) -> list[str]:
-    """Safely extract text values from XMP XML while blocking entity expansion."""
-    lowered = xmp_xml.lower()
+def _extract_safe_xmp_strings(xmp_xml: str, max_chars: int = _DEFAULT_MAX_CHUNK_BYTES) -> list[str]:
+    """Safely extract text values from XMP XML while blocking entity expansion and oversized packets."""
+    bounded_xml = xmp_xml[:max_chars]
+    lowered = bounded_xml.lower()
     if "<!entity" in lowered or "<!doctype" in lowered:
         # Strip DOCTYPE headers rather than expanding entities; return stripped text fallback
-        stripped = re.sub(r"<[^>]+>", " ", xmp_xml)
+        stripped = re.sub(r"<[^>]+>", " ", bounded_xml)
         clean = sanitize_metadata_text(stripped)
         return [clean] if clean else []
 
     extracted: list[str] = []
     try:
-        root = ET.fromstring(xmp_xml)
+        root = ET.fromstring(bounded_xml)
         for elem in root.iter():
             if elem.text and elem.text.strip():
                 clean = sanitize_metadata_text(elem.text)
@@ -182,14 +209,19 @@ def _extract_safe_xmp_strings(xmp_xml: str) -> list[str]:
                 if clean_attr and len(clean_attr) >= 4:
                     extracted.append(f"{local_attr}={clean_attr}")
     except ET.ParseError:
-        stripped = re.sub(r"<[^>]+>", " ", xmp_xml)
+        stripped = re.sub(r"<[^>]+>", " ", bounded_xml)
         clean = sanitize_metadata_text(stripped)
         if clean:
             extracted.append(clean)
     return extracted
 
 
-def harvest_metadata(image_path: str | Path, detected_format: str) -> list[MetadataEntry]:
+def harvest_metadata(
+    image_path: str | Path,
+    detected_format: str,
+    max_file_bytes: int = _DEFAULT_MAX_FILE_BYTES,
+    max_chunk_bytes: int = _DEFAULT_MAX_CHUNK_BYTES,
+) -> list[MetadataEntry]:
     """Harvest textual metadata across EXIF, PNG chunks, XMP, IPTC, and GIF comments."""
     path = Path(image_path)
     seen: set[tuple[str, str]] = set()
@@ -251,14 +283,18 @@ def harvest_metadata(image_path: str | Path, detected_format: str) -> list[Metad
                     continue
                 if "xmp" in info_key.lower():
                     xmp_str = sanitize_metadata_text(info_val)
-                    for xmp_piece in _extract_safe_xmp_strings(
-                        info_val.decode("utf-8", errors="ignore") if isinstance(info_val, bytes) else str(info_val)
-                    ):
+                    raw_xmp = (
+                        info_val[:max_chunk_bytes].decode("utf-8", errors="ignore")
+                        if isinstance(info_val, bytes)
+                        else str(info_val)[:max_chunk_bytes]
+                    )
+                    for xmp_piece in _extract_safe_xmp_strings(raw_xmp, max_chars=max_chunk_bytes):
                         _add("XMP:Packet", xmp_piece)
                     if not entries and xmp_str:
-                        _add("XMP:Packet", xmp_str)
+                        _add("XMP:Packet", xmp_str[:max_chunk_bytes])
                 elif isinstance(info_val, (str, bytes)):
-                    clean_info = sanitize_metadata_text(info_val)
+                    bounded_val = info_val[:max_chunk_bytes]
+                    clean_info = sanitize_metadata_text(bounded_val)
                     if clean_info:
                         prefix = "GIF" if detected_format == "GIF" else detected_format
                         _add(f"{prefix}:{info_key}", clean_info)
@@ -267,21 +303,25 @@ def harvest_metadata(image_path: str | Path, detected_format: str) -> list[Metad
 
     # 3. Direct PNG chunk scan so multiple tEXt/zTXt/iTXt chunks with identical keys are preserved
     if detected_format == "PNG":
-        for chunk_source, chunk_val in _parse_png_text_chunks(path):
+        for chunk_source, chunk_val in _parse_png_text_chunks(
+            path,
+            max_file_bytes=max_file_bytes,
+            max_chunk_bytes=max_chunk_bytes,
+        ):
             if not any(e.content == chunk_val for e in entries):
                 _add(chunk_source, chunk_val)
 
     # 4. Scan raw JPEG APP1 XMP packet if present and missed by Pillow
     if detected_format == "JPEG":
         try:
-            raw_bytes = path.read_bytes()
+            raw_bytes = _read_bounded_bytes(path, max_bytes=max_file_bytes)
             start_tag = b"<x:xmpmeta"
             idx = raw_bytes.find(start_tag)
             if idx != -1:
                 end_idx = raw_bytes.find(b"</x:xmpmeta>", idx)
                 if end_idx != -1:
-                    packet = raw_bytes[idx : end_idx + 12].decode("utf-8", errors="ignore")
-                    for xmp_piece in _extract_safe_xmp_strings(packet):
+                    packet = raw_bytes[idx : min(end_idx + 12, idx + max_chunk_bytes)].decode("utf-8", errors="ignore")
+                    for xmp_piece in _extract_safe_xmp_strings(packet, max_chars=max_chunk_bytes):
                         if not any(e.content == xmp_piece for e in entries):
                             _add("XMP:Packet", xmp_piece)
         except OSError:

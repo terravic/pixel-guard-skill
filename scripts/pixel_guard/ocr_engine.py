@@ -109,11 +109,12 @@ def _run_tesseract_on_array(
     """Execute local Tesseract OCR on a single grayscale uint8 array with bounded OpenMP threads."""
     tess_env = os.environ.copy()
     tess_env["OMP_THREAD_LIMIT"] = "2" if (image.shape[0] * image.shape[1]) >= 600_000 else "1"
-    with tempfile.NamedTemporaryFile(suffix=".pgm", delete=True) as tmp:
-        cv2.imwrite(tmp.name, image)
+    with tempfile.TemporaryDirectory(prefix="pixel_guard_ocr_") as tmp_dir:
+        tmp_pgm = str(Path(tmp_dir) / "frame.pgm")
+        cv2.imwrite(tmp_pgm, image)
         try:
             proc = subprocess.run(
-                [tesseract_bin, tmp.name, "stdout", "--oem", "3", "--psm", str(psm), "tsv"],
+                [tesseract_bin, tmp_pgm, "stdout", "--oem", "3", "--psm", str(psm), "tsv"],
                 env=tess_env,
                 capture_output=True,
                 text=True,

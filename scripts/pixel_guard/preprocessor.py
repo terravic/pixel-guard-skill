@@ -10,8 +10,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageSequence
 
-from .config import ScanConfig
+from .config import ScanConfig, ValidationError
 from .models import PassImage
+from .validator import PIL_LIMIT_LOCK
 
 logger = logging.getLogger("pixel_guard.preprocessor")
 
@@ -52,33 +53,51 @@ def extract_distinct_frames(image_path: str | Path, config: ScanConfig) -> list[
     frames: list[ExtractedFrame] = []
     prev_gray: np.ndarray | None = None
 
-    with Image.open(image_path) as img:
-        is_tiff = (getattr(img, "format", "") or "").upper() == "TIFF"
-        for idx, raw_frame in enumerate(ImageSequence.Iterator(img)):
-            if len(frames) >= config.max_frames:
-                logger.debug("Reached max_frames=%d limit on %s", config.max_frames, image_path)
-                break
+    with PIL_LIMIT_LOCK:
+        previous_limit = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = config.max_image_pixels
+        try:
+            with Image.open(image_path) as img:
+                is_tiff = (getattr(img, "format", "") or "").upper() == "TIFF"
+                for idx, raw_frame in enumerate(ImageSequence.Iterator(img)):
+                    if len(frames) >= config.max_frames:
+                        logger.debug("Reached max_frames=%d limit on %s", config.max_frames, image_path)
+                        break
 
-            rgba, has_alpha = _pil_frame_to_raw_rgba(raw_frame)
-            comp_rgb = composite_rgba_on_white(rgba)
-            gray = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2GRAY)
+                    fw, fh = raw_frame.size
+                    if fw * fh > config.max_image_pixels:
+                        raise ValidationError(
+                            f"Frame {idx} pixel count ({fw * fh}) exceeds configured safety limit ({config.max_image_pixels}).",
+                            error_code="IMAGE_DIMENSIONS_EXCEEDED",
+                        )
 
-            if not is_tiff and prev_gray is not None and prev_gray.shape == gray.shape:
-                diff_arr = cv2.absdiff(prev_gray, gray)
-                mean_diff = float(np.mean(diff_arr))
-                if mean_diff < config.frame_diff_threshold and int(diff_arr.max()) < 3:
-                    continue
+                    rgba, has_alpha = _pil_frame_to_raw_rgba(raw_frame)
+                    comp_rgb = composite_rgba_on_white(rgba)
+                    gray = cv2.cvtColor(comp_rgb, cv2.COLOR_RGB2GRAY)
 
-            prev_gray = gray
-            frames.append(
-                ExtractedFrame(
-                    frame_index=idx,
-                    raw_rgba=rgba,
-                    composited_rgb=comp_rgb,
-                    has_alpha_channel=has_alpha,
-                    is_document_page=is_tiff,
-                )
-            )
+                    if not is_tiff and prev_gray is not None and prev_gray.shape == gray.shape:
+                        diff_arr = cv2.absdiff(prev_gray, gray)
+                        mean_diff = float(np.mean(diff_arr))
+                        if mean_diff < config.frame_diff_threshold and int(diff_arr.max()) < 3:
+                            continue
+
+                    prev_gray = gray
+                    frames.append(
+                        ExtractedFrame(
+                            frame_index=idx,
+                            raw_rgba=rgba,
+                            composited_rgb=comp_rgb,
+                            has_alpha_channel=has_alpha,
+                            is_document_page=is_tiff,
+                        )
+                    )
+        except Image.DecompressionBombError as exc:
+            raise ValidationError(
+                f"Rejected potential decompression bomb during frame extraction: {exc}",
+                error_code="IMAGE_DIMENSIONS_EXCEEDED",
+            ) from exc
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_limit
 
     return frames
 

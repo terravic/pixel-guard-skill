@@ -106,6 +106,7 @@ All file paths in documentation, configuration files, and scan outputs originate
 |-- .gitignore
 |-- LICENSE
 |-- README.md
+|-- SECURITY_AUDIT.md
 |-- SKILL.md
 |-- dashboard.html
 |-- pyproject.toml
@@ -117,6 +118,11 @@ All file paths in documentation, configuration files, and scan outputs originate
 |   |-- plugin.json
 |   `-- report_schema.json
 |-- documents/
+|   |-- legal/
+|   |   |-- cookies.md
+|   |   |-- privacy.md
+|   |   |-- refunds.md
+|   |   `-- terms.md
 |   `-- prd.md
 |-- references/
 |   |-- color_science_methodology.md
@@ -185,6 +191,7 @@ All file paths in documentation, configuration files, and scan outputs originate
     |   |-- v7b_multipage_tiff_hidden.tiff
     |   |-- v8a_margin_bleed_top.png
     |   `-- v8b_margin_bleed_bottom.png
+    |-- test_security_and_accessibility.py
     |-- test_smoke.py
     |-- test_system_e2e.py
     |-- test_unit_color_science.py
@@ -301,6 +308,15 @@ pytest tests/ -v --cov=scripts/pixel_guard --cov-report=term-missing
 
 ---
 
-## 7. License
+## 7. Security, Local Data Hygiene, and Governance
+
+- **Audit Log:** Security, sanitization, compliance, and accessibility findings and remediation statuses are tracked in [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
+- **Loopback Isolation:** The interactive Studio server binds strictly to `127.0.0.1`, validates `Host` and loopback `Origin` headers, enforces per-daemon `X-Pixel-Guard-Token` verification for `file://` origins, restricts `/api/browse`, `/api/scan-path`, and `/api/publish-report` to the repository root, validates inbound JSON schemas, and emits strict HTTP security headers with a SHA-256 Content Security Policy.
+- **Local Artifact Cleanup:** `pixel-guard` stores no databases, cookies, or remote logs. Uploaded files and intermediate OCR frames use ephemeral temporary directories deleted immediately after execution. After inspecting sensitive documents, pass `--no-dashboard` or remove `dashboard.html` from local disk (`rm -f dashboard.html`) to clear the last rendered preview.
+- **Legal Policy Drafts:** Starter legal templates (each marked `DRAFT — REQUIRES LEGAL REVIEW`) are located under `documents/legal/`: [privacy.md](documents/legal/privacy.md), [terms.md](documents/legal/terms.md), [refunds.md](documents/legal/refunds.md), and [cookies.md](documents/legal/cookies.md).
+
+---
+
+## 8. License
 
 This project is licensed under the **Apache License, Version 2.0**. See the [LICENSE](LICENSE) file in the project root directory for the full license text.

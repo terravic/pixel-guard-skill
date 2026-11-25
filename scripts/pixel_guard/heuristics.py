@@ -83,7 +83,7 @@ HEURISTIC_RULES: tuple[HeuristicRule, ...] = (
         security_flag="EXTERNAL_URL_EXFILTRATION",
         severity="CRITICAL",
         pattern=re.compile(
-            r"(?i)https?://[^\s\"'<>]+(?:/(?:leak|exfil|sink|collect|webhook)|"
+            r"(?i)https?://[^\s\"'<>?]+(?:/(?:leak|exfil|sink|collect|webhook)|"
             r"\?(?:[^\s\"'<>]*&)?(?:token|secret|key|password|dump|history|data)=)"
         ),
     ),

@@ -76,6 +76,53 @@ def _env_int(name: str, default: int) -> int:
         ) from exc
 
 
+_JSON_CONFIG_BOUNDS: dict[str, tuple[type | tuple[type, ...], float, float]] = {
+    "wcag_contrast_threshold": ((int, float), 1.0, 21.0),
+    "ciede2000_delta_e_threshold": ((int, float), 0.0, 200.0),
+    "alpha_opacity_threshold": ((int, float), 0.0, 1.0),
+    "micro_text_height_px": (int, 1, 256),
+    "entropy_threshold": ((int, float), 0.0, 8.0),
+    "entropy_min_length": (int, 4, 4096),
+    "max_image_pixels": (int, 1, 100_000_000),
+    "max_frames": (int, 1, 256),
+    "max_ocr_dimension": (int, 640, 8192),
+    "frame_diff_threshold": ((int, float), 0.0, 255.0),
+    "ocr_workers": (int, 1, 16),
+    "ocr_min_confidence": ((int, float), 0.0, 1.0),
+    "ocr_pass_timeout_s": ((int, float), 1.0, 120.0),
+    "max_file_bytes": (int, 1024, 512 * 1024 * 1024),
+    "max_metadata_chunk_bytes": (int, 1024, 16 * 1024 * 1024),
+}
+
+
+def _validate_json_config_overrides(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate JSON config overrides against strict field allowlist, types, and numeric bounds."""
+    unknown_keys = sorted(set(payload.keys()) - set(_JSON_CONFIG_BOUNDS.keys()))
+    if unknown_keys:
+        raise ValidationError(
+            f"Configuration JSON contains unsupported or disallowed keys: {', '.join(unknown_keys)}",
+            error_code="INVALID_CONFIG_JSON",
+        )
+
+    validated: dict[str, Any] = {}
+    for key, raw_val in payload.items():
+        if raw_val is None:
+            continue
+        expected_type, min_val, max_val = _JSON_CONFIG_BOUNDS[key]
+        if isinstance(raw_val, bool) or not isinstance(raw_val, expected_type):
+            raise ValidationError(
+                f"Configuration field '{key}' has invalid type {type(raw_val).__name__}",
+                error_code="INVALID_CONFIG_JSON",
+            )
+        if raw_val < min_val or raw_val > max_val:
+            raise ValidationError(
+                f"Configuration field '{key}' value {raw_val} is outside allowed range [{min_val}, {max_val}]",
+                error_code="INVALID_CONFIG_JSON",
+            )
+        validated[key] = float(raw_val) if expected_type == (int, float) else int(raw_val)
+    return validated
+
+
 @dataclass(frozen=True)
 class ScanConfig:
     """Runtime thresholds and execution parameters for deterministic scanning."""
@@ -93,6 +140,8 @@ class ScanConfig:
     ocr_workers: int = 4
     ocr_min_confidence: float = 0.32
     ocr_pass_timeout_s: float = 10.0
+    max_file_bytes: int = 50 * 1024 * 1024
+    max_metadata_chunk_bytes: int = 1 * 1024 * 1024
     tesseract_cmd: str | None = None
     ocr_backend: str = "auto"
 
@@ -114,6 +163,8 @@ class ScanConfig:
             ocr_workers=max(1, _env_int("PIXEL_GUARD_OCR_WORKERS", 4)),
             ocr_min_confidence=_env_float("PIXEL_GUARD_OCR_MIN_CONF", 0.32),
             ocr_pass_timeout_s=max(1.0, _env_float("PIXEL_GUARD_OCR_TIMEOUT_S", 10.0)),
+            max_file_bytes=max(1024, _env_int("PIXEL_GUARD_MAX_FILE_BYTES", 50 * 1024 * 1024)),
+            max_metadata_chunk_bytes=max(1024, _env_int("PIXEL_GUARD_MAX_METADATA_BYTES", 1 * 1024 * 1024)),
             tesseract_cmd=tess_cmd.strip() if tess_cmd and tess_cmd.strip() else None,
             ocr_backend=os.getenv("PIXEL_GUARD_OCR_BACKEND", "auto").strip().lower(),
         )
@@ -131,14 +182,14 @@ class ScanConfig:
         """Load configuration from a JSON file merged atop environment defaults."""
         if not config_path.is_file():
             raise ValidationError(
-                f"Configuration file does not exist: {config_path}",
+                f"Configuration file does not exist: {to_project_relative_path(config_path)}",
                 error_code="MISSING_CONFIG_FILE",
             )
         try:
             payload = json.loads(config_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValidationError(
-                f"Failed to parse configuration JSON {config_path}: {exc}",
+                f"Failed to parse configuration JSON {to_project_relative_path(config_path)}: {exc}",
                 error_code="INVALID_CONFIG_JSON",
             ) from exc
         if not isinstance(payload, dict):
@@ -146,4 +197,5 @@ class ScanConfig:
                 "Configuration JSON root must be an object",
                 error_code="INVALID_CONFIG_JSON",
             )
-        return cls.from_env().with_overrides(payload)
+        validated = _validate_json_config_overrides(payload)
+        return cls.from_env().with_overrides(validated)

@@ -80,7 +80,12 @@ def scan_image(image_path: str | Path, config: ScanConfig | None = None) -> Scan
 
     # Stage 1: Validation & Metadata Ingestion
     validated = validate_image_file(image_path, active_config)
-    raw_metadata = harvest_metadata(validated.path, validated.detected_format)
+    raw_metadata = harvest_metadata(
+        validated.path,
+        validated.detected_format,
+        max_file_bytes=active_config.max_file_bytes,
+        max_chunk_bytes=active_config.max_metadata_chunk_bytes,
+    )
 
     # Stage 2: Multi-Frame Decomposition & Deterministic Vision Passes
     frames = extract_distinct_frames(validated.path, active_config)

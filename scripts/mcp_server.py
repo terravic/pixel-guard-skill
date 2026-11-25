@@ -97,6 +97,7 @@ def handle_jsonrpc_request(request: dict[str, Any]) -> dict[str, Any] | None:
                         "inputSchema": {
                             "type": "object",
                             "required": ["image_path"],
+                            "additionalProperties": False,
                             "properties": {
                                 "image_path": {
                                     "type": "string",
@@ -119,20 +120,64 @@ def handle_jsonrpc_request(request: dict[str, Any]) -> dict[str, Any] | None:
         }
 
     if method == "tools/call":
-        params = request.get("params") or {}
+        params = request.get("params")
+        if not isinstance(params, dict):
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params: params must be an object"},
+            }
         tool_name = params.get("name")
-        arguments = params.get("arguments") or {}
+        arguments = params.get("arguments")
         if tool_name != "inspect_image_security":
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
             }
+        if not isinstance(arguments, dict):
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params: arguments must be an object"},
+            }
+        allowed_args = {"image_path", "output_format", "generate_dashboard"}
+        unknown_args = sorted(set(arguments.keys()) - allowed_args)
+        if unknown_args:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {
+                    "code": -32602,
+                    "message": f"Invalid params: undefined argument(s) {', '.join(unknown_args)}",
+                },
+            }
+        raw_path = arguments.get("image_path")
+        raw_format = arguments.get("output_format", "markdown")
+        raw_gen_dash = arguments.get("generate_dashboard", False)
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params: image_path must be a non-empty string"},
+            }
+        if not isinstance(raw_format, str) or raw_format.strip().lower() not in {"markdown", "json"}:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params: output_format must be 'markdown' or 'json'"},
+            }
+        if not isinstance(raw_gen_dash, bool):
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params: generate_dashboard must be a boolean"},
+            }
         try:
             output = inspect_image_security(
-                image_path=str(arguments.get("image_path", "")),
-                output_format=str(arguments.get("output_format", "markdown")),
-                generate_dashboard=bool(arguments.get("generate_dashboard", False)),
+                image_path=raw_path,
+                output_format=raw_format,
+                generate_dashboard=raw_gen_dash,
             )
             return {
                 "jsonrpc": "2.0",

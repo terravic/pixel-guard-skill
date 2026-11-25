@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import threading
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageSequence, UnidentifiedImageError
 
-from .config import ScanConfig, ValidationError
+from .config import ScanConfig, ValidationError, to_project_relative_path
 from .models import ValidatedAsset
 
 logger = logging.getLogger("pixel_guard.validator")
+PIL_LIMIT_LOCK = threading.Lock()
 
 # Binary header markers indicative of script/executable polyglots masquerading as images
 _POLYGLOT_MARKERS: tuple[bytes, ...] = (
@@ -90,16 +92,17 @@ def _check_polyglot_bytes(head: bytes, tail: bytes, detected_format: str | None)
 
 
 def validate_image_file(image_path: str | Path, config: ScanConfig) -> ValidatedAsset:
-    """Validate existence, magic bytes, polyglot safety, dimensions, and stream integrity."""
+    """Validate existence, size bounds, magic bytes, polyglot safety, dimensions, and stream integrity."""
     path = Path(image_path)
+    display_path = to_project_relative_path(path)
     if not path.exists():
         raise ValidationError(
-            f"Image file not found: {path}",
+            f"Image file not found: {display_path}",
             error_code="FILE_NOT_FOUND",
         )
     if not path.is_file():
         raise ValidationError(
-            f"Target path is not a regular file: {path}",
+            f"Target path is not a regular file: {display_path}",
             error_code="NOT_A_FILE",
         )
 
@@ -107,14 +110,19 @@ def validate_image_file(image_path: str | Path, config: ScanConfig) -> Validated
         file_size = path.stat().st_size
     except OSError as exc:
         raise ValidationError(
-            f"Unable to stat file {path}: {exc}",
+            f"Unable to stat file {display_path}: {exc}",
             error_code="IO_ERROR",
         ) from exc
 
     if file_size == 0:
         raise ValidationError(
-            f"Image file is empty (0 bytes): {path}",
+            f"Image file is empty (0 bytes): {display_path}",
             error_code="CORRUPTED_IMAGE_STREAM",
+        )
+    if file_size > config.max_file_bytes:
+        raise ValidationError(
+            f"Image file size ({file_size} bytes) exceeds configured safety limit ({config.max_file_bytes} bytes).",
+            error_code="FILE_SIZE_EXCEEDED",
         )
 
     hasher = hashlib.sha256()
@@ -135,7 +143,7 @@ def validate_image_file(image_path: str | Path, config: ScanConfig) -> Validated
             tail = prev_chunk[-4096:]
     except OSError as exc:
         raise ValidationError(
-            f"Unable to read file {path}: {exc}",
+            f"Unable to read file {display_path}: {exc}",
             error_code="IO_ERROR",
         ) from exc
 
@@ -149,43 +157,60 @@ def validate_image_file(image_path: str | Path, config: ScanConfig) -> Validated
             error_code="UNSUPPORTED_IMAGE_FORMAT",
         )
 
-    previous_limit = Image.MAX_IMAGE_PIXELS
-    Image.MAX_IMAGE_PIXELS = config.max_image_pixels
-    try:
-        with Image.open(path) as img:
-            width, height = img.size
-            if width <= 0 or height <= 0:
-                raise ValidationError(
-                    f"Invalid image dimensions ({width}x{height}) in {path.name}.",
-                    error_code="CORRUPTED_IMAGE_STREAM",
-                )
-            if width * height > config.max_image_pixels:
-                raise ValidationError(
-                    f"Image pixel count ({width * height}) exceeds configured safety limit ({config.max_image_pixels}).",
-                    error_code="IMAGE_DIMENSIONS_EXCEEDED",
-                )
-            frames_total = int(getattr(img, "n_frames", 1) or 1)
-            mode = img.mode
-            channels = _CHANNEL_MAP.get(mode, len(img.getbands()))
-            img.verify()
+    with PIL_LIMIT_LOCK:
+        previous_limit = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = config.max_image_pixels
+        try:
+            with Image.open(path) as img:
+                width, height = img.size
+                if width <= 0 or height <= 0:
+                    raise ValidationError(
+                        f"Invalid image dimensions ({width}x{height}) in {path.name}.",
+                        error_code="CORRUPTED_IMAGE_STREAM",
+                    )
+                if width * height > config.max_image_pixels:
+                    raise ValidationError(
+                        f"Image pixel count ({width * height}) exceeds configured safety limit ({config.max_image_pixels}).",
+                        error_code="IMAGE_DIMENSIONS_EXCEEDED",
+                    )
+                frames_total = int(getattr(img, "n_frames", 1) or 1)
+                mode = img.mode
+                channels = _CHANNEL_MAP.get(mode, len(img.getbands()))
+                img.verify()
 
-        # Re-open and decode first frame raster to detect mid-stream truncation
-        with Image.open(path) as img_check:
-            img_check.load()
-    except Image.DecompressionBombError as exc:
-        raise ValidationError(
-            f"Rejected potential decompression bomb in {path.name}: {exc}",
-            error_code="IMAGE_DIMENSIONS_EXCEEDED",
-        ) from exc
-    except ValidationError:
-        raise
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, EOFError) as exc:
-        raise ValidationError(
-            f"Corrupted or truncated image stream in {path.name}: {exc}",
-            error_code="CORRUPTED_IMAGE_STREAM",
-        ) from exc
-    finally:
-        Image.MAX_IMAGE_PIXELS = previous_limit
+            # Re-open and decode first frame raster to detect mid-stream truncation,
+            # and verify dimensions of all subsequent frames up to config.max_frames.
+            with Image.open(path) as img_check:
+                img_check.load()
+                if frames_total > 1:
+                    for frame_idx, frame in enumerate(ImageSequence.Iterator(img_check)):
+                        if frame_idx >= config.max_frames:
+                            break
+                        fw, fh = frame.size
+                        if fw <= 0 or fh <= 0:
+                            raise ValidationError(
+                                f"Invalid frame {frame_idx} dimensions ({fw}x{fh}) in {path.name}.",
+                                error_code="CORRUPTED_IMAGE_STREAM",
+                            )
+                        if fw * fh > config.max_image_pixels:
+                            raise ValidationError(
+                                f"Frame {frame_idx} pixel count ({fw * fh}) exceeds configured safety limit ({config.max_image_pixels}).",
+                                error_code="IMAGE_DIMENSIONS_EXCEEDED",
+                            )
+        except Image.DecompressionBombError as exc:
+            raise ValidationError(
+                f"Rejected potential decompression bomb in {path.name}: {exc}",
+                error_code="IMAGE_DIMENSIONS_EXCEEDED",
+            ) from exc
+        except ValidationError:
+            raise
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError, EOFError) as exc:
+            raise ValidationError(
+                f"Corrupted or truncated image stream in {path.name}: {exc}",
+                error_code="CORRUPTED_IMAGE_STREAM",
+            ) from exc
+        finally:
+            Image.MAX_IMAGE_PIXELS = previous_limit
 
     logger.debug(
         "Validated %s (%s, %dx%d, %d ch, %d frames)",
